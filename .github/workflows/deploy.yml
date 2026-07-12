@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       # 배포 전 품질 게이트: 린트 → 테스트 → 빌드 순으로 통과해야 배포
