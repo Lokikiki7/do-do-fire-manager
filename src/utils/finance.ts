@@ -61,7 +61,8 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
     investmentGrowthRate,
     years,
   } = input;
-  const r = monthlyRate(annualReturnRate);
+  // ✅ 월수익률 직접 사용 (변경)
+  const r = annualReturnRate / 100;
   const growthPerYear = 1 + (salaryGrowthRate + investmentGrowthRate) / 100;
   const startYear = new Date().getFullYear();
 
