@@ -37,7 +37,7 @@ export const DEFAULT_DATA: AppData = {
   simulator: {
     initialAmount: 10_000_000,
     monthlyInvestment: 1_000_000,
-    annualReturnRate: 7,
+    monthlyReturnRate: 0.5,
     salaryGrowthRate: 3,
     investmentGrowthRate: 3,
     years: 20,

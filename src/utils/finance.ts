@@ -5,11 +5,6 @@
  */
 import type { SimulatorInput, SimulationPoint } from '@/types';
 
-/** 연 수익률(%) → 월 복리 수익률로 변환 */
-export function monthlyRate(annualPercent: number): number {
-  return Math.pow(1 + annualPercent / 100, 1 / 12) - 1;
-}
-
 /**
  * 실질 수익률 (피셔 방정식).
  * 명목 수익률에서 물가상승률을 제거해 "구매력 기준" 수익률을 구한다.
@@ -56,12 +51,12 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
   const {
     initialAmount,
     monthlyInvestment,
-    annualReturnRate,
+    monthlyReturnRate,
     salaryGrowthRate,
     investmentGrowthRate,
     years,
   } = input;
-  const r = monthlyRate(annualReturnRate);
+    const r = monthlyReturnRate / 100;
   const growthPerYear = 1 + (salaryGrowthRate + investmentGrowthRate) / 100;
   const startYear = new Date().getFullYear();
 
@@ -99,10 +94,10 @@ export function estimateFireDate(
   currentNetWorth: number,
   target: number,
   monthlyInvestment: number,
-  annualReturnRate: number,
+  monthlyReturnRate: number,
 ): Date | null {
   if (currentNetWorth >= target) return new Date();
-  const r = monthlyRate(annualReturnRate);
+    const r = monthlyReturnRate / 100;
   let total = currentNetWorth;
 
   for (let m = 1; m <= 60 * 12; m++) {

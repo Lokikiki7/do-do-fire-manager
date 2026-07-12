@@ -23,7 +23,7 @@ export interface Settings {
   fireTarget: number;
   /** 연간 지출 (4% 룰 계산용) */
   annualExpense: number;
-  /** 기본 연 수익률 (%, 예: 7) */
+  /** 기본 월 수익률 (%, 예: 7) */
   defaultReturnRate: number;
   currency: Currency;
   theme: ThemeMode;
@@ -93,7 +93,7 @@ export interface Goal {
 export interface SimulatorInput {
   initialAmount: number; // 초기 투자금
   monthlyInvestment: number; // 월 투자금
-  annualReturnRate: number; // 연 수익률 (%)
+  monthlyReturnRate: number; // 연 수익률 (%)
   salaryGrowthRate: number; // 연봉 인상률 (%) → 투자금 증가에 반영
   investmentGrowthRate: number; // 연간 투자금 증가율 (%)
   years: number; // 시뮬레이션 기간 (년)

@@ -4,7 +4,6 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  monthlyRate,
   fireNumberByRule,
   fireProgress,
   simulate,
@@ -46,17 +45,6 @@ describe('toPresentValue (현재가치 환산)', () => {
   });
 });
 
-describe('monthlyRate', () => {
-  it('연 0%는 월 0%', () => {
-    expect(monthlyRate(0)).toBe(0);
-  });
-  it('연 수익률을 12제곱하면 원래 연 수익률로 복원된다', () => {
-    const r = monthlyRate(7);
-    const annual = Math.pow(1 + r, 12) - 1;
-    expect(annual).toBeCloseTo(0.07, 10);
-  });
-});
-
 describe('fireNumberByRule (4% 룰)', () => {
   it('연 4천만 지출 · 4% 인출 → 10억', () => {
     expect(fireNumberByRule(40_000_000, 4)).toBe(1_000_000_000);
@@ -93,7 +81,7 @@ describe('simulate (월 복리 시뮬레이션)', () => {
   const base: SimulatorInput = {
     initialAmount: 10_000_000,
     monthlyInvestment: 1_000_000,
-    annualReturnRate: 7,
+    monthlyReturnRate: 0.5,
     salaryGrowthRate: 0,
     investmentGrowthRate: 0,
     years: 20,
@@ -110,14 +98,14 @@ describe('simulate (월 복리 시뮬레이션)', () => {
     expect(last.principal).toBe(250_000_000);
   });
 
-  it('복리 수익이 원금을 초과한다 (7% 20년)', () => {
+  it('복리 수익이 원금을 초과한다 (월 0.5% 20년)', () => {
     const last = simulate(base).at(-1)!;
     expect(last.total).toBeGreaterThan(last.principal);
     expect(last.profit).toBe(last.total - last.principal);
   });
 
   it('수익률 0%면 총자산 = 원금 (수익 0)', () => {
-    const noReturn = simulate({ ...base, annualReturnRate: 0 });
+    const noReturn = simulate({ ...base, monthlyReturnRate: 0 });
     const last = noReturn.at(-1)!;
     expect(last.total).toBe(last.principal);
     expect(last.profit).toBe(0);
@@ -142,14 +130,14 @@ describe('simulate (월 복리 시뮬레이션)', () => {
 
 describe('estimateFireDate (달성 예상일)', () => {
   it('이미 목표 달성이면 현재 시점(오늘) 반환', () => {
-    const d = estimateFireDate(2_000_000_000, 1_000_000_000, 1_000_000, 7);
+    const d = estimateFireDate(2_000_000_000, 1_000_000_000, 1_000_000, 0.5);
     expect(d).toBeInstanceOf(Date);
     // 오늘 날짜와 같은 날
     expect(d!.toDateString()).toBe(new Date().toDateString());
   });
 
   it('월 투자로 목표에 도달하면 미래 날짜를 반환', () => {
-    const d = estimateFireDate(0, 100_000_000, 2_000_000, 7);
+    const d = estimateFireDate(0, 100_000_000, 2_000_000, 0.5);
     expect(d).toBeInstanceOf(Date);
     expect(d!.getTime()).toBeGreaterThan(Date.now());
   });

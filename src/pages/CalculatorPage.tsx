@@ -88,7 +88,7 @@ export function CalculatorPage() {
               onChange={(e) => setMonthlyInvest(parseAmount(e.target.value))}
             />
           </Field>
-          <Field label={`예상 연 수익률 (${returnRate}%)`}>
+          <Field label={`예상 월 수익률 (${returnRate}%)`}>
             <input
               type="range"
               min={1}

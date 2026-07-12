@@ -56,7 +56,7 @@ function normalizeSimulator(v: unknown): SimulatorInput {
   return {
     initialAmount: num(v.initialAmount, d.initialAmount),
     monthlyInvestment: num(v.monthlyInvestment, d.monthlyInvestment),
-    annualReturnRate: num(v.annualReturnRate, d.annualReturnRate),
+    monthlyReturnRate: num(v.monthlyReturnRate, d.monthlyReturnRate),
     salaryGrowthRate: num(v.salaryGrowthRate, d.salaryGrowthRate),
     investmentGrowthRate: num(v.investmentGrowthRate, d.investmentGrowthRate),
     years: num(v.years, d.years),

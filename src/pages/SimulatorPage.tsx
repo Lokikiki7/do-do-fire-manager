@@ -62,14 +62,14 @@ export function SimulatorPage() {
                 onChange={amountField('monthlyInvestment')}
               />
             </Field>
-            <Field label={`연 수익률 (${sim.annualReturnRate}%)`}>
+            <Field label={`월 수익률 (${sim.monthlyReturnRate}%)`}>
               <input
                 type="range"
                 min={1}
                 max={15}
                 step={0.5}
-                value={sim.annualReturnRate}
-                onChange={numField('annualReturnRate')}
+                value={sim.monthlyReturnRate}
+                onChange={numField('monthlyReturnRate')}
                 className="w-full accent-accent"
               />
             </Field>
