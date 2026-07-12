@@ -11,8 +11,13 @@ import type { SimulatorInput, SimulationPoint } from '@/types';
  * 실질 = (1 + 명목) / (1 + 인플레이션) - 1
  * 예) 명목 7%, 인플레 2.5% → 실질 약 4.39%
  */
-export function realReturnRate(nominalPercent: number, inflationPercent: number): number {
-  return ((1 + nominalPercent / 100) / (1 + inflationPercent / 100) - 1) * 100;
+export function realReturnRate(
+  nominalPercent: number,
+  inflationPercent: number,
+): number {
+  return (
+    ((1 + nominalPercent / 100) / (1 + inflationPercent / 100) - 1) * 100
+  );
 }
 
 /**
@@ -31,12 +36,15 @@ export function toPresentValue(
  * 4% 룰: 연간 지출을 안전 인출률로 나눠 필요한 은퇴 자금을 계산.
  * 예) 연 4천만원 지출, 4% 인출 → 10억 필요
  */
-export function fireNumberByRule(annualExpense: number, withdrawalRate = 4): number {
+export function fireNumberByRule(
+  annualExpense: number,
+  withdrawalRate = 4,
+): number {
   if (withdrawalRate <= 0) return Infinity;
   return annualExpense / (withdrawalRate / 100);
 }
 
-/** FIRE 달성률 (0~100, 초과 시 100 초과값 그대로 반환하지 않고 clamp) */
+/** FIRE 달성률 (0~100) */
 export function fireProgress(netWorth: number, target: number): number {
   if (target <= 0) return 0;
   return Math.min(100, Math.max(0, (netWorth / target) * 100));
@@ -56,8 +64,12 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
     investmentGrowthRate,
     years,
   } = input;
-    const r = monthlyReturnRate / 100;
-  const growthPerYear = 1 + (salaryGrowthRate + investmentGrowthRate) / 100;
+
+  // ✅ 월수익률(%) → 소수로 변환
+  const r = monthlyReturnRate / 100;
+
+  const growthPerYear =
+    1 + (salaryGrowthRate + investmentGrowthRate) / 100;
   const startYear = new Date().getFullYear();
 
   const points: SimulationPoint[] = [];
@@ -65,11 +77,12 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
   let principal = initialAmount;
   let monthly = monthlyInvestment;
 
-  const totalMonths = Math.max(1, Math.min(years, 60)) * 12; // 최대 60년 안전장치
+  const totalMonths = Math.max(1, Math.min(years, 60)) * 12;
 
   for (let m = 0; m < totalMonths; m++) {
-    // 매년 초 투자금 인상 (첫 해 제외)
-    if (m > 0 && m % 12 === 0) monthly *= growthPerYear;
+    if (m > 0 && m % 12 === 0) {
+      monthly *= growthPerYear;
+    }
 
     total = (total + monthly) * (1 + r);
     principal += monthly;
@@ -82,6 +95,7 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
       profit: Math.round(total - principal),
     });
   }
+
   return points;
 }
 
@@ -96,23 +110,34 @@ export function estimateFireDate(
   monthlyInvestment: number,
   monthlyReturnRate: number,
 ): Date | null {
-  if (currentNetWorth >= target) return new Date();
-    const r = monthlyReturnRate / 100;
+  if (currentNetWorth >= target) {
+    return new Date();
+  }
+
+  // ✅ 월수익률(%) → 소수로 변환
+  const r = monthlyReturnRate / 100;
+
   let total = currentNetWorth;
 
   for (let m = 1; m <= 60 * 12; m++) {
     total = (total + monthlyInvestment) * (1 + r);
+
     if (total >= target) {
       const d = new Date();
       d.setMonth(d.getMonth() + m);
       return d;
     }
   }
+
   return null;
 }
 
 /** 저축률(%) = (투자 + 저축) / 수입 */
-export function savingRate(income: number, investment: number, saving: number): number {
+export function savingRate(
+  income: number,
+  investment: number,
+  saving: number,
+): number {
   if (income <= 0) return 0;
   return ((investment + saving) / income) * 100;
 }
