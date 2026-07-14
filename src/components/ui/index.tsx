@@ -4,6 +4,7 @@
  * 전부 시맨틱 색상 토큰(surface/ink/accent…)만 사용 → 다크모드 자동 대응.
  */
 import { motion } from 'framer-motion';
+import { X } from 'lucide-react';
 import type {
   ReactNode,
   InputHTMLAttributes,
@@ -214,5 +215,58 @@ export function Checkbox({ checked, onChange }: { checked: boolean; onChange: ()
         </motion.svg>
       )}
     </button>
+  );
+}
+
+// ─────────────────────────────────────────────
+// Modal — 모달 다이얼로그
+// ─────────────────────────────────────────────
+interface ModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  children: ReactNode;
+}
+
+export function Modal({ open, onOpenChange, title, children }: ModalProps) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* 배경 오버레이 */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={() => onOpenChange(false)}
+        className="absolute inset-0 bg-black/30 dark:bg-black/50"
+      />
+
+      {/* 모달 컨테이너 */}
+      <motion.div
+        initial={{ y: "100%", opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: "100%", opacity: 0 }}
+        transition={{ type: "spring", damping: 30, stiffness: 300 }}
+        className="relative w-full sm:w-auto sm:max-w-md bg-surface rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto"
+      >
+        {/* 헤더 */}
+        <div className="sticky top-0 flex items-center justify-between p-4 border-b border-line/10 bg-surface/95 backdrop-blur">
+          <h2 className="font-semibold text-ink">{title}</h2>
+          <button
+            onClick={() => onOpenChange(false)}
+            className="p-1 hover:bg-line/10 rounded-lg transition-colors"
+            aria-label="닫기"
+          >
+            <X size={20} className="text-ink-faint" />
+          </button>
+        </div>
+
+        {/* 본문 */}
+        <div className="p-4">
+          {children}
+        </div>
+      </motion.div>
+    </div>
   );
 }

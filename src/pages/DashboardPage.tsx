@@ -3,7 +3,7 @@
  * 총자산/순자산/월투자금/FIRE달성률/오늘의 변화 + 자산 성장 그래프 + 로드맵 미리보기.
  */
 import { useState } from 'react';
-import { Wallet, PiggyBank, TrendingUp, Flame, Plus, CheckCircle, Circle } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Flame, Plus } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useMetrics } from '@/hooks/useMetrics';
 import { StatCard, ProgressRing } from '@/components/ui/Stat';
@@ -26,34 +26,13 @@ export function DashboardPage() {
   const { currency, name } = data.settings;
   const [showAdd, setShowAdd] = useState(false);
 
-  // 자산 그래프 데이터 (snapshots 또는 records 기반)
-  const chartData = (() => {
-    if (data.snapshots.length > 0) {
-      // snapshots이 있으면 우선 사용
-      return data.snapshots.map((s) => ({
-        x: s.date.slice(5), // MM-DD
-        total: s.totalAssets - s.liabilities,
-      }));
-    } else if (data.records.length > 0) {
-      // records만 있으면 월별 누적 순자산 계산
-      const sorted = [...data.records].sort((a, b) => a.month.localeCompare(b.month));
-      let cumulative = 0;
-      return sorted.map((r) => {
-        const netMonth = r.income - (r.fixedExpense + r.variableExpense + r.debt);
-        cumulative += netMonth;
-        return {
-          x: r.month.slice(5), // MM
-          total: Math.max(0, cumulative),
-        };
-      });
-    }
-    return [];
-  })();
+  // 자산 그래프 데이터 (날짜 → 순자산)
+  const chartData = data.snapshots.map((s) => ({
+    x: s.date.slice(5), // MM-DD
+    total: s.totalAssets - s.liabilities,
+  }));
 
-  // targetAmount가 있으면 완료 여부와 상관없이 표시
-  const upcomingMilestones = data.milestones
-    .filter((x) => !x.done || x.targetAmount)
-    .slice(0, 5);
+  const upcomingMilestones = data.milestones.filter((x) => !x.done).slice(0, 3);
 
   return (
     <div className="space-y-6">
@@ -158,34 +137,13 @@ export function DashboardPage() {
         <SectionTitle>다가오는 마일스톤</SectionTitle>
         {upcomingMilestones.length > 0 ? (
           <div className="space-y-2">
-            {upcomingMilestones.map((ms) => {
-              const isAchieved = ms.targetAmount ? m.netWorth >= ms.targetAmount : false;
-              return (
-                <div key={ms.id} className="flex items-center gap-3 py-2">
-                  <span className="w-12 text-sm font-semibold text-accent tabular">{ms.year}</span>
-                  <span className="flex-1 text-ink">{ms.title}</span>
-                  {ms.targetAmount && (
-                    <span
-                      className={cn(
-                        'text-xs font-semibold px-2 py-1 rounded-full',
-                        isAchieved
-                          ? 'bg-positive/10 text-positive'
-                          : 'bg-negative/10 text-negative',
-                      )}
-                    >
-                      {isAchieved ? '+' : '-'} {formatShort(ms.targetAmount, currency)}
-                    </span>
-                  )}
-                  <span className={cn(isAchieved ? 'text-positive' : 'text-line/20')}>
-                    {isAchieved ? (
-                      <CheckCircle size={16} />
-                    ) : (
-                      <Circle size={16} />
-                    )}
-                  </span>
-                </div>
-              );
-            })}
+            {upcomingMilestones.map((ms) => (
+              <div key={ms.id} className="flex items-center gap-3 py-2">
+                <span className="w-12 text-sm font-semibold text-accent tabular">{ms.year}</span>
+                <span className="flex-1 text-ink">{ms.title}</span>
+                <span className={cn('w-2 h-2 rounded-full bg-line/20')} />
+              </div>
+            ))}
           </div>
         ) : (
           <p className="text-sm text-ink-faint py-4">설정된 마일스톤이 모두 완료됐어요! 🎉</p>
