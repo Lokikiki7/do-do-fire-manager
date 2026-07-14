@@ -2,19 +2,36 @@ import { useEffect, useState } from 'react';
 import { AppDataProvider, useAppData } from '@/hooks/useAppData';
 import { useTheme } from '@/hooks/useTheme';
 import { useHashRoute } from '@/hooks/useHashRoute';
-import { ConfirmProvider } from '@/components/ui/ConfirmDialog';
+import { ConfirmProvider, useConfirm } from '@/components/ui/ConfirmDialog';
 import { Sidebar, MobileNav } from '@/components/layout/Nav';
 import { Header } from '@/components/layout/Header';
 import { PageRouter, PAGE_META } from '@/pages/PageRouter';
 import { LoginPage } from '@/pages/LoginPage';
-import { onAuthStateChange, supabase } from '@/lib/supabase';
+import { Button } from '@/components/ui';
+import { LogOut } from 'lucide-react';
+import { onAuthStateChange, supabase, signOut } from '@/lib/supabase';
 import { saveUserData } from '@/lib/supabase-sync';
 
 function Shell() {
   const { data, updateSettings } = useAppData();
   const [page, navigate] = useHashRoute();
+  const confirm = useConfirm();
   useTheme(data.settings.theme);
   const meta = PAGE_META[page];
+
+  const handleLogout = async () => {
+    if (
+      await confirm({
+        title: '로그아웃하시겠어요?',
+        message: '로그인 화면으로 이동됩니다.',
+        confirmLabel: '로그아웃',
+        danger: false,
+      })
+    ) {
+      await signOut();
+      window.location.reload();
+    }
+  };
 
   // 데이터 변경 시 Supabase 동기화
   useEffect(() => {
@@ -38,6 +55,15 @@ function Shell() {
             subtitle={meta.subtitle}
             theme={data.settings.theme}
             onThemeChange={(t) => updateSettings({ theme: t })}
+            action={
+              <button
+                onClick={handleLogout}
+                className="p-2 rounded-lg hover:bg-line/10 transition-colors text-ink-soft hover:text-ink"
+                title="로그아웃"
+              >
+                <LogOut size={20} />
+              </button>
+            }
           />
           <PageRouter page={page} />
         </div>

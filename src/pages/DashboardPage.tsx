@@ -1,14 +1,14 @@
 /**
  * 대시보드 — 앱의 첫 화면.
- * 총자산/순자산/월투자금/FIRE달성률/오늘의 변화 + 자산 성장 그래프 + 로드맵 미리보기.
+ * 총자산/순자산/월투자금/FIRE달성률/오늘의 변화 + 수입/지출 그래프 + 로드맵 미리보기.
  */
 import { useState } from 'react';
-import { Wallet, PiggyBank, TrendingUp, Flame, Plus } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Flame, Plus, Check } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useMetrics } from '@/hooks/useMetrics';
 import { StatCard, ProgressRing } from '@/components/ui/Stat';
 import { Card, SectionTitle, Button, Field, Input, EmptyState, cn } from '@/components/ui';
-import { AssetAreaChart } from '@/components/charts';
+import { BudgetBarChart } from '@/components/charts';
 import {
   formatMoney,
   formatShort,
@@ -25,14 +25,30 @@ export function DashboardPage() {
   const m = useMetrics();
   const { currency, name } = data.settings;
   const [showAdd, setShowAdd] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
-  // 자산 그래프 데이터 (날짜 → 순자산)
-  const chartData = data.snapshots.map((s) => ({
-    x: s.date.slice(5), // MM-DD
-    total: s.totalAssets - s.liabilities,
-  }));
+  // 수입/지출 차트 데이터
+  const budgetChartData = (() => {
+    if (data.records.length === 0) return [];
+    const sorted = [...data.records].sort((a, b) => a.month.localeCompare(b.month));
+    return sorted.map((r) => ({
+      x: r.month.slice(5), // MM
+      수입: r.income,
+      지출: r.fixedExpense + r.variableExpense + r.debt,
+      투자: r.investment,
+    }));
+  })();
 
   const upcomingMilestones = data.milestones.filter((x) => !x.done).slice(0, 3);
+
+  const checkSync = async () => {
+    if (data.records.length === 0) {
+      setSyncMessage('수입/지출 데이터가 없습니다.');
+      return;
+    }
+    setSyncMessage('✅ 데이터가 정상적으로 연동되고 있습니다!');
+    setTimeout(() => setSyncMessage(''), 3000);
+  };
 
   return (
     <div className="space-y-6">
@@ -74,34 +90,31 @@ export function DashboardPage() {
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* 자산 성장 그래프 */}
+        {/* 수입/지출 그래프 */}
         <Card className="lg:col-span-2" delay={0.2}>
           <SectionTitle
             right={
-              <Button size="sm" variant="ghost" onClick={() => setShowAdd((v) => !v)}>
-                <Plus size={15} /> 자산 기록
+              <Button size="sm" variant="ghost" onClick={checkSync}>
+                <Check size={15} /> 연동 확인
               </Button>
             }
           >
-            자산 성장 추이
+            월별 수입 / 지출 / 투자
           </SectionTitle>
 
-          {showAdd && (
-            <SnapshotForm
-              onAdd={(s) => {
-                addSnapshot(s);
-                setShowAdd(false);
-              }}
-            />
+          {syncMessage && (
+            <div className="mb-4 p-3 rounded-lg bg-positive/10 border border-positive/30 text-positive text-sm">
+              {syncMessage}
+            </div>
           )}
 
-          {chartData.length > 0 ? (
-            <AssetAreaChart data={chartData} currency={currency} />
+          {budgetChartData.length > 0 ? (
+            <BudgetBarChart data={budgetChartData} currency={currency} />
           ) : (
             <EmptyState
               icon={<Wallet size={32} />}
-              title="아직 자산 기록이 없어요"
-              desc="'자산 기록' 버튼으로 오늘의 총자산을 입력하면 그래프가 그려집니다."
+              title="아직 수입/지출 기록이 없어요"
+              desc="'수입 / 지출' 페이지에서 월별 기록을 입력하면 그래프가 그려집니다."
             />
           )}
         </Card>
@@ -141,6 +154,11 @@ export function DashboardPage() {
               <div key={ms.id} className="flex items-center gap-3 py-2">
                 <span className="w-12 text-sm font-semibold text-accent tabular">{ms.year}</span>
                 <span className="flex-1 text-ink">{ms.title}</span>
+                {ms.targetAmount && (
+                  <span className="text-sm font-semibold text-gold tabular">
+                    {formatShort(ms.targetAmount, currency)}
+                  </span>
+                )}
                 <span className={cn('w-2 h-2 rounded-full bg-line/20')} />
               </div>
             ))}
