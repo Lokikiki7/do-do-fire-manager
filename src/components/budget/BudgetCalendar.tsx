@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, SectionTitle, Button, cn } from '@/components/ui';
 import { formatMoney, formatPercent } from '@/utils/format';
@@ -19,7 +19,13 @@ export function BudgetCalendar({
   records,
   currency,
 }: BudgetCalendarProps) {
-  const [year, monthNum] = [Number(date.split('-')[0]), Number(date.split('-')[1])];
+  // 달력 월 네비게이션을 위한 내부 상태 (날짜 선택과 독립적)
+  const initialDate = date.split('-');
+  const [displayYear, setDisplayYear] = useState(Number(initialDate[0]));
+  const [displayMonth, setDisplayMonth] = useState(Number(initialDate[1]));
+
+  const year = displayYear;
+  const monthNum = displayMonth;
 
   const calendarDays = useMemo(() => {
     const firstDay = new Date(year, monthNum - 1, 1).getDay();
@@ -33,14 +39,14 @@ export function BudgetCalendar({
 
   const prevMonth = () => {
     const d = new Date(year, monthNum - 2, 1);
-    const newDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-    onDateChange(newDate);
+    setDisplayYear(d.getFullYear());
+    setDisplayMonth(d.getMonth() + 1);
   };
 
   const nextMonth = () => {
     const d = new Date(year, monthNum, 1);
-    const newDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-    onDateChange(newDate);
+    setDisplayYear(d.getFullYear());
+    setDisplayMonth(d.getMonth() + 1);
   };
 
   const today = new Date();
