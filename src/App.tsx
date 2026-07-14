@@ -1,6 +1,5 @@
 /**
- * 앱 루트 — Supabase 인증 + 데이터 동기화
- * 로그인되지 않으면 LoginPage, 로그인되면 Shell 표시
+ * 앱 루트 — 로그인 선택사항 (Supabase 미설정 시 로컬 저장소 사용)
  */
 import { useEffect } from 'react';
 import { AppDataProvider, useAppData } from '@/hooks/useAppData';
@@ -13,6 +12,8 @@ import { Sidebar, MobileNav } from '@/components/layout/Nav';
 import { Header } from '@/components/layout/Header';
 import { PageRouter, PAGE_META } from '@/pages/PageRouter';
 import { supabase } from '@/lib/supabase';
+
+const SUPABASE_ENABLED = !!import.meta.env.VITE_SUPABASE_URL;
 
 function Shell() {
   const { data, updateSettings } = useAppData();
@@ -43,9 +44,9 @@ function AppContent() {
   const { user, loading } = useAuth();
   const { data, replaceAll } = useAppData();
 
-  // 기기 동기화: 로그인 시 Supabase에서 데이터 로드
+  // Supabase 동기화 (활성화된 경우만)
   useEffect(() => {
-    if (!user || loading) return;
+    if (!SUPABASE_ENABLED || !user || loading) return;
 
     const syncData = async () => {
       try {
@@ -68,9 +69,8 @@ function AppContent() {
     syncData();
   }, [user, loading, replaceAll]);
 
-  // 기기 동기화: 데이터 변경 시 Supabase에 업로드
   useEffect(() => {
-    if (!user) return;
+    if (!SUPABASE_ENABLED || !user) return;
 
     const timer = setTimeout(async () => {
       try {
@@ -97,6 +97,12 @@ function AppContent() {
     );
   }
 
+  // Supabase 미설정: 바로 앱 표시
+  if (!SUPABASE_ENABLED) {
+    return <Shell />;
+  }
+
+  // Supabase 설정: 로그인 필요
   if (!user) {
     return <LoginPage user={null} onLogout={() => {}} />;
   }
