@@ -1,7 +1,3 @@
-/**
- * 통계 — 월별 투자율/저축률, 소비 분석, 자산 성장률.
- * 원천 기록에서 파생 지표를 집계해 시각화한다.
- */
 import { useMemo } from 'react';
 import { PiggyBank, TrendingUp, Percent, Flame } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
@@ -19,7 +15,6 @@ export function StatsPage() {
   const stats = useMemo(() => {
     if (records.length === 0) return null;
 
-    // 평균 저축률 / 투자율
     const avgSaving =
       records.reduce((s, r) => s + savingRate(r.income, r.investment, r.saving), 0) /
       records.length;
@@ -27,13 +22,11 @@ export function StatsPage() {
       records.reduce((s, r) => s + (r.income ? (r.investment / r.income) * 100 : 0), 0) /
       records.length;
 
-    // 누적 소비 구성 (고정 vs 변동)
     const fixed = records.reduce((s, r) => s + r.fixedExpense, 0);
     const variable = records.reduce((s, r) => s + r.variableExpense, 0);
     const invest = records.reduce((s, r) => s + r.investment, 0);
     const save = records.reduce((s, r) => s + r.saving, 0);
 
-    // 자산 성장률 (첫 스냅샷 대비 최근)
     let growth = 0;
     if (snapshots.length >= 2) {
       const first = snapshots[0].totalAssets - snapshots[0].liabilities;
@@ -95,24 +88,33 @@ export function StatsPage() {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-4">
-        <Card>
-          <SectionTitle>현금 흐름 구성</SectionTitle>
-          <CompositionPie data={composition} currency={currency} />
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            {composition.map((d, i) => (
-              <div key={d.name} className="flex items-center gap-2 text-sm">
-                <span
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-                />
-                <span className="text-ink-soft">{d.name}</span>
-                <span className="ml-auto tabular font-medium">
-                  {formatMoney(d.value, currency)}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
+        {composition.length > 0 ? (
+          <Card>
+            <SectionTitle>현금 흐름 구성</SectionTitle>
+            <CompositionPie data={composition} currency={currency} />
+            <div className="grid grid-cols-2 gap-2 mt-4">
+              {composition.map((d, i) => (
+                <div key={d.name} className="flex items-center gap-2 text-sm">
+                  <span
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                  />
+                  <span className="text-ink-soft">{d.name}</span>
+                  <span className="ml-auto tabular font-medium">
+                    {formatMoney(d.value, currency)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <SectionTitle>현금 흐름 구성</SectionTitle>
+            <p className="text-sm text-ink-faint py-8 text-center">
+              수입/지출 데이터가 없습니다.
+            </p>
+          </Card>
+        )}
 
         <Card>
           <SectionTitle>인사이트</SectionTitle>
