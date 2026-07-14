@@ -45,7 +45,7 @@ export default function App() {
     });
 
     return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
+      if (subscription?.unsubscribe) {
         subscription.unsubscribe();
       }
     };
@@ -55,8 +55,8 @@ export default function App() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-surface">
         <div className="text-center">
-          <div className="text-3xl font-bold text-accent mb-4">FIRE Manager</div>
-          <div className="text-ink-faint">Loading...</div>
+          <div className="text-3xl font-bold text-accent mb-4">🔥 FIRE Manager</div>
+          <div className="text-ink-faint">로딩 중...</div>
         </div>
       </div>
     );

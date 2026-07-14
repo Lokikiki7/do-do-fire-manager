@@ -5,25 +5,31 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+/** 회원가입 */
 export async function signUp(email: string, password: string) {
   return supabase.auth.signUp({ email, password });
 }
 
+/** 로그인 */
 export async function signIn(email: string, password: string) {
   return supabase.auth.signInWithPassword({ email, password });
 }
 
+/** 로그아웃 */
 export async function signOut() {
   return supabase.auth.signOut();
 }
 
+/** 현재 사용자 */
 export async function getCurrentUser() {
   const { data } = await supabase.auth.getSession();
   return data.session?.user || null;
 }
 
+/** 세션 모니터 */
 export function onAuthStateChange(callback: (user: any) => void) {
-  return supabase.auth.onAuthStateChange(async (event, session) => {
+  const { data } = supabase.auth.onAuthStateChange((_event, session) => {
     callback(session?.user || null);
   });
+  return data?.subscription || null;
 }
