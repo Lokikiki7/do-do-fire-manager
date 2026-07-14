@@ -7,13 +7,26 @@ import { Sidebar, MobileNav } from '@/components/layout/Nav';
 import { Header } from '@/components/layout/Header';
 import { PageRouter, PAGE_META } from '@/pages/PageRouter';
 import { LoginPage } from '@/pages/LoginPage';
-import { onAuthStateChange } from '@/lib/supabase';
+import { onAuthStateChange, supabase } from '@/lib/supabase';
+import { saveUserData } from '@/lib/supabase-sync';
 
 function Shell() {
   const { data, updateSettings } = useAppData();
   const [page, navigate] = useHashRoute();
   useTheme(data.settings.theme);
   const meta = PAGE_META[page];
+
+  // 데이터 변경 시 Supabase 동기화
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      const user = await supabase.auth.getUser();
+      if (user.data.user) {
+        await saveUserData(user.data.user.id, data);
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [data]);
 
   return (
     <div className="min-h-screen flex">
@@ -37,10 +50,12 @@ function Shell() {
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    const subscription = onAuthStateChange((user) => {
+    const subscription = onAuthStateChange(async (user) => {
       setIsAuthenticated(!!user);
+      setUserId(user?.id || null);
       setLoading(false);
     });
 
@@ -65,7 +80,7 @@ export default function App() {
   }
 
   return (
-    <AppDataProvider>
+    <AppDataProvider userId={userId}>
       <ConfirmProvider>
         <Shell />
       </ConfirmProvider>
