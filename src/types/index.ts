@@ -14,6 +14,22 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type GoalTerm = 'short' | 'mid' | 'long';
 
 // ─────────────────────────────────────────────
+// 자산 구간별 목표 수익률 (새로운 코어 엔진)
+// ─────────────────────────────────────────────
+export interface ReturnRateTier {
+  id: string;
+  /** 자산 하한선 (이상) */
+  minAsset: number;
+  /** 자산 상한선 (미만) - 없으면 무제한 */
+  maxAsset?: number;
+  /** 해당 구간의 월 목표 수익률 (%) */
+  monthlyReturnRate: number;
+  /** 사용자 정의 레이블 (선택) */
+  label?: string;
+}
+
+
+// ─────────────────────────────────────────────
 // 설정
 // ─────────────────────────────────────────────
 export interface Settings {
@@ -98,6 +114,9 @@ export interface SimulatorInput {
   salaryGrowthRate: number; // 연봉 인상률 (%) → 투자금 증가에 반영
   investmentGrowthRate: number; // 연간 투자금 증가율 (%)
   years: number; // 시뮬레이션 기간 (년)
+  // ─── 자산 구간별 수익률 시스템 (NEW)
+  useVariableReturnRate?: boolean; // true면 구간별, false면 고정
+  returnRateTiers?: ReturnRateTier[]; // 자산 구간별 수익률 목록
 }
 
 /** 시뮬레이션 월별 결과 한 행 */

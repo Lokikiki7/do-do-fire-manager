@@ -3,7 +3,7 @@
  * UI와 완전히 분리되어 있어 단위 테스트가 쉽고,
  * 계산기/시뮬레이터/대시보드가 같은 로직을 공유한다.
  */
-import type { SimulatorInput, SimulationPoint } from '@/types';
+import type { SimulatorInput, SimulationPoint, ReturnRateTier } from '@/types';
 
 /**
  * 실질 수익률 (피셔 방정식).
@@ -51,9 +51,29 @@ export function fireProgress(netWorth: number, target: number): number {
 }
 
 /**
+ * 자산 규모에 따라 적용할 월 수익률을 찾는다.
+ * 자산 구간별 목표 수익률 시스템의 핵심 엔진.
+ */
+export function getReturnRateForAsset(
+  asset: number,
+  tiers: ReturnRateTier[] = [],
+): number {
+  if (!tiers || tiers.length === 0) return 0;
+
+  const tier = tiers.find((t) => {
+    const aboveMin = asset >= t.minAsset;
+    const belowMax = t.maxAsset === undefined || asset < t.maxAsset;
+    return aboveMin && belowMax;
+  });
+
+  return tier ? tier.monthlyReturnRate : 0;
+}
+
+/**
  * 투자 시뮬레이션 (월 단위 복리).
  * - 월초에 투자금 납입 → 월말에 수익률 적용
  * - 매년(12개월마다) 월 투자금이 (연봉인상률 + 투자증가율)만큼 증가
+ * - NEW: useVariableReturnRate=true면 구간별 수익률 자동 적용
  */
 export function simulate(input: SimulatorInput): SimulationPoint[] {
   const {
@@ -63,10 +83,13 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
     salaryGrowthRate,
     investmentGrowthRate,
     years,
+    useVariableReturnRate = false,
+    returnRateTiers = [],
   } = input;
 
-  // ✅ 월수익률(%) → 소수로 변환
-  const r = monthlyReturnRate / 100;
+  const getRate = useVariableReturnRate
+    ? (asset: number) => getReturnRateForAsset(asset, returnRateTiers) / 100
+    : () => monthlyReturnRate / 100;
 
   const growthPerYear =
     1 + (salaryGrowthRate + investmentGrowthRate) / 100;
@@ -84,7 +107,9 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
       monthly *= growthPerYear;
     }
 
-    total = (total + monthly) * (1 + r);
+    total += monthly;
+    const r = getRate(total);
+    total *= (1 + r);
     principal += monthly;
 
     points.push({
@@ -114,9 +139,7 @@ export function estimateFireDate(
     return new Date();
   }
 
-  // ✅ 월수익률(%) → 소수로 변환
   const r = monthlyReturnRate / 100;
-
   let total = currentNetWorth;
 
   for (let m = 1; m <= 60 * 12; m++) {

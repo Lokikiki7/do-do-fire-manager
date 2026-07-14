@@ -15,6 +15,7 @@ import type {
   Milestone,
   Goal,
   SimulatorInput,
+  ReturnRateTier,
   Currency,
   ThemeMode,
   GoalTerm,
@@ -50,6 +51,17 @@ function normalizeSettings(v: unknown): Settings {
   };
 }
 
+function normalizeReturnRateTier(v: Record<string, unknown>): ReturnRateTier | null {
+  if (typeof v.id !== 'string') return null;
+  return {
+    id: v.id,
+    minAsset: num(v.minAsset, 0),
+    maxAsset: typeof v.maxAsset === 'number' ? v.maxAsset : undefined,
+    monthlyReturnRate: num(v.monthlyReturnRate, 5),
+    label: typeof v.label === 'string' ? v.label : undefined,
+  };
+}
+
 function normalizeSimulator(v: unknown): SimulatorInput {
   const d = DEFAULT_DATA.simulator;
   if (!isObj(v)) return { ...d };
@@ -60,6 +72,8 @@ function normalizeSimulator(v: unknown): SimulatorInput {
     salaryGrowthRate: num(v.salaryGrowthRate, d.salaryGrowthRate),
     investmentGrowthRate: num(v.investmentGrowthRate, d.investmentGrowthRate),
     years: num(v.years, d.years),
+    useVariableReturnRate: typeof v.useVariableReturnRate === 'boolean' ? v.useVariableReturnRate : false,
+    returnRateTiers: normalizeArray(v.returnRateTiers, normalizeReturnRateTier),
   };
 }
 

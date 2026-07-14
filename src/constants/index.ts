@@ -41,6 +41,9 @@ export const DEFAULT_DATA: AppData = {
     salaryGrowthRate: 3,
     investmentGrowthRate: 3,
     years: 20,
+    // ─── 자산 구간별 수익률 시스템 (NEW)
+    useVariableReturnRate: false,
+    returnRateTiers: [],
   },
 };
 
