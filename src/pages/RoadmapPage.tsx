@@ -1,3 +1,7 @@
+/**
+ * 인생 로드맵 — 연도순 마일스톤 타임라인.
+ * 체크로 완료 처리하며, 완료 시 진행률과 시각적 상태가 바뀐다.
+ */
 import { useState } from 'react';
 import { Plus, Trash2, Map, Flag } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -13,19 +17,20 @@ import {
   EmptyState,
   cn,
 } from '@/components/ui';
-import { todayISO, uid, formatShort } from '@/utils/format';
+import { todayISO, uid, formatMoney } from '@/utils/format';
 import { parseYear, parseAmount } from '@/utils/validate';
 
 export function RoadmapPage() {
   const { data, addMilestone, updateMilestone, removeMilestone } = useAppData();
-  const { currency } = data.settings;
   const confirm = useConfirm();
   const [showAdd, setShowAdd] = useState(false);
   const [year, setYear] = useState(new Date().getFullYear());
   const [title, setTitle] = useState('');
-  const [targetAmount, setTargetAmount] = useState('');
+  const [amount, setAmount] = useState('');
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editAmount, setEditAmount] = useState('');
 
-  const milestones = data.milestones;
+  const milestones = data.milestones; // 훅에서 이미 연도순 정렬됨
   const doneCount = milestones.filter((m) => m.done).length;
   const progress = milestones.length ? (doneCount / milestones.length) * 100 : 0;
 
@@ -35,17 +40,26 @@ export function RoadmapPage() {
       id: uid(),
       year: parseYear(year),
       title: title.trim(),
-      targetAmount: targetAmount ? parseAmount(targetAmount) : undefined,
+      targetAmount: amount.trim() ? parseAmount(amount) : undefined,
       done: false,
     });
     setTitle('');
-    setTargetAmount('');
+    setAmount('');
     setShowAdd(false);
   };
 
   const toggle = (id: string, done: boolean) =>
     updateMilestone(id, { done: !done, doneAt: !done ? todayISO() : undefined });
 
+  const submitEdit = (id: string) => {
+    if (editAmount.trim()) {
+      updateMilestone(id, { targetAmount: parseAmount(editAmount) });
+    }
+    setEditId(null);
+    setEditAmount('');
+  };
+
+  /** 삭제 전 확인 다이얼로그 */
   const handleRemove = async (id: string, title: string) => {
     if (
       await confirm({
@@ -60,6 +74,7 @@ export function RoadmapPage() {
 
   return (
     <div className="space-y-4">
+      {/* 진행 요약 */}
       <Card>
         <div className="flex items-center justify-between mb-3">
           <div>
@@ -94,13 +109,14 @@ export function RoadmapPage() {
                 onKeyDown={(e) => e.key === 'Enter' && submit()}
               />
             </Field>
-            <Field label="목표금액 (선택)">
+            <Field label="목표 금액" hint="선택사항">
               <Input
                 type="number"
                 inputMode="numeric"
                 placeholder="0"
-                value={targetAmount}
-                onChange={(e) => setTargetAmount(e.target.value)}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && submit()}
               />
             </Field>
             <div className="flex items-end">
@@ -110,6 +126,7 @@ export function RoadmapPage() {
         )}
       </Card>
 
+      {/* 타임라인 */}
       <Card>
         <SectionTitle>인생 타임라인</SectionTitle>
         {milestones.length === 0 ? (
@@ -120,6 +137,7 @@ export function RoadmapPage() {
           />
         ) : (
           <div className="relative pl-2">
+            {/* 세로 라인 */}
             <div className="absolute left-[15px] top-2 bottom-2 w-0.5 bg-line/10" />
             <div className="space-y-1">
               {milestones.map((ms, i) => (
@@ -128,8 +146,9 @@ export function RoadmapPage() {
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: i * 0.04 }}
-                  className="relative flex items-center gap-4 py-2.5 group"
+                  className="relative flex items-center gap-3 py-2.5 group"
                 >
+                  {/* 노드 */}
                   <div
                     className={cn(
                       'relative z-10 w-7 h-7 rounded-full grid place-items-center shrink-0 border-2 bg-surface',
@@ -149,34 +168,4 @@ export function RoadmapPage() {
                     )}
                   >
                     {ms.year}
-                  </span>
-                  <span
-                    className={cn(
-                      'flex-1 transition-all',
-                      ms.done ? 'text-ink-faint line-through' : 'text-ink',
-                    )}
-                  >
-                    {ms.title}
-                  </span>
-                  {ms.targetAmount && (
-                    <span className="text-sm font-semibold text-accent tabular">
-                      {formatShort(ms.targetAmount, currency)}
-                    </span>
-                  )}
-                  <Checkbox checked={ms.done} onChange={() => toggle(ms.id, ms.done)} />
-                  <button
-                    onClick={() => handleRemove(ms.id, ms.title)}
-                    aria-label={`${ms.title} 마일스톤 삭제`}
-                    className="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-negative transition-all"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        )}
-      </Card>
-    </div>
-  );
-}
+             
