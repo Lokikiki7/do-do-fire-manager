@@ -14,7 +14,7 @@ import { parseAmount } from '@/utils/validate';
 import { formatMoney, formatMonth, formatPercent, currentMonth, uid } from '@/utils/format';
 import type { MonthlyRecord } from '@/types';
 
-const EMPTY = { income: '', fixedExpense: '', variableExpense: '', debt: '', investment: '', saving: '' };
+const EMPTY = { income: '', fixedExpense: '', variableExpense: '', debt: '', investment: '', saving: '', investmentReturnRate: '' };
 type FormState = Record<keyof typeof EMPTY, string>;
 
 /** YYYY-MM → 다음 달 YYYY-MM */
@@ -33,6 +33,7 @@ function toForm(r: MonthlyRecord): FormState {
     debt: String(r.debt || ''),
     investment: String(r.investment || ''),
     saving: String(r.saving || ''),
+    investmentReturnRate: String(r.investmentReturnRate || ''),
   };
 }
 
@@ -83,6 +84,7 @@ export function BudgetPage() {
       debt: debtPayment,
       investment: autoInvestment,
       saving: autoSaving,
+      investmentReturnRate: parseAmount(form.investmentReturnRate),
     });
     // 새 기록이면 다음 달 준비, 수정이면 그대로 유지
     if (!wasEdit) {
@@ -206,7 +208,7 @@ export function BudgetPage() {
         {/* 섹션 2: 선택 입력 (투자/저축 중 하나만 입력) */}
         <div className="mb-6 p-3 rounded-lg bg-surface-secondary/50 border border-line/20">
           <div className="text-xs font-semibold text-ink-faint mb-3 uppercase tracking-wide">투자 배분</div>
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid sm:grid-cols-3 gap-3">
             <Field label="투자금" hint={investment > 0 ? '입력함' : '선택'}>
               <Input
                 type="number"
@@ -214,6 +216,18 @@ export function BudgetPage() {
                 placeholder="0"
                 value={form.investment}
                 onChange={setField('investment')}
+              />
+            </Field>
+            <Field label="수익률 (%)" hint="월별 예상 수익률">
+              <Input
+                type="number"
+                inputMode="decimal"
+                placeholder="0"
+                value={form.investmentReturnRate}
+                onChange={setField('investmentReturnRate')}
+                step="0.1"
+                min="0"
+                max="100"
               />
             </Field>
             <Field label="저축" hint={saving > 0 ? '입력함' : `자동: ${formatMoney(autoSaving, currency)}`}>
@@ -227,7 +241,7 @@ export function BudgetPage() {
             </Field>
           </div>
           <p className="text-xs text-ink-faint mt-2">
-            💡 투자금을 입력하면 저축이 자동 계산되고, 저축을 입력하면 투자금이 자동 계산됩니다.
+            💡 투자금을 입력하면 저축이 자동 계산되고, 저축을 입력하면 투자금이 자동 계산됩니다. 수익률을 입력하면 자산 성장에 자동 반영됩니다.
           </p>
         </div>
 
@@ -270,6 +284,7 @@ export function BudgetPage() {
                   <th className="font-medium py-2 px-2 text-right">수입</th>
                   <th className="font-medium py-2 px-2 text-right">지출</th>
                   <th className="font-medium py-2 px-2 text-right">투자+저축</th>
+                  <th className="font-medium py-2 px-2 text-right">수익률</th>
                   <th className="font-medium py-2 px-2 text-right">저축률</th>
                   <th className="py-2 px-2" />
                 </tr>
@@ -290,6 +305,9 @@ export function BudgetPage() {
                       </td>
                       <td className="py-2.5 px-2 text-right tabular text-accent">
                         {formatMoney(invSave, currency)}
+                      </td>
+                      <td className="py-2.5 px-2 text-right tabular font-semibold text-accent">
+                        {r.investmentReturnRate ? formatPercent(r.investmentReturnRate) : '-'}
                       </td>
                       <td className="py-2.5 px-2 text-right tabular font-semibold">
                         <span

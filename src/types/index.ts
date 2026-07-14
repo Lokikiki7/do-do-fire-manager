@@ -65,6 +65,7 @@ export interface MonthlyRecord {
   debt: number; // 부채 상환 (선택)
   investment: number; // 투자금
   saving: number; // 저축
+  investmentReturnRate?: number; // 투자 수익률 (%, 예: 5 = 5%)
 }
 
 // ─────────────────────────────────────────────

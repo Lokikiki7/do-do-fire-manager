@@ -99,6 +99,7 @@ function normalizeRecord(v: Record<string, unknown>): MonthlyRecord | null {
     debt: num(v.debt),
     investment: num(v.investment),
     saving: num(v.saving),
+    investmentReturnRate: num(v.investmentReturnRate, 0),
   };
 }
 

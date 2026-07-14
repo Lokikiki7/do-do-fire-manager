@@ -31,7 +31,9 @@ export function useMetrics() {
       if (records.length === 0) return 0;
       const sorted = [...records].sort((a, b) => a.month.localeCompare(b.month));
       return sorted.reduce((acc, r) => {
-        const netMonth = r.income - (r.fixedExpense + r.variableExpense + r.debt + r.investment);
+        const savableAmount = r.income - (r.fixedExpense + r.variableExpense + r.debt);
+        const investmentGain = r.investment * ((r.investmentReturnRate || 0) / 100);
+        const netMonth = savableAmount + investmentGain;
         return acc + netMonth;
       }, 0);
     })();
