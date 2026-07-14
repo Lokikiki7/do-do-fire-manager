@@ -74,6 +74,8 @@ export interface MonthlyRecord {
   income: number; // 수입
   fixedExpense: number; // 고정지출
   variableExpense: number; // 변동지출
+  /** 목표 금액 (선택사항, 금전 목표용) */
+  targetAmount?: number;
   debt: number; // 부채 상환 (선택)
   investment: number; // 투자금
   saving: number; // 저축
@@ -87,6 +89,8 @@ export interface Milestone {
   /** 목표 연도 */
   year: number;
   title: string; // 예: "1억 달성", "유럽여행"
+  /** 목표 금액 (선택사항, 금전 목표용) */
+  targetAmount?: number;
   done: boolean;
   /** 완료한 날짜 (done=true일 때) */
   doneAt?: string;
