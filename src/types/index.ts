@@ -14,22 +14,6 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type GoalTerm = 'short' | 'mid' | 'long';
 
 // ─────────────────────────────────────────────
-// 자산 구간별 목표 수익률 (새로운 코어 엔진)
-// ─────────────────────────────────────────────
-export interface ReturnRateTier {
-  id: string;
-  /** 자산 하한선 (이상) */
-  minAsset: number;
-  /** 자산 상한선 (미만) - 없으면 무제한 */
-  maxAsset?: number;
-  /** 해당 구간의 월 목표 수익률 (%) */
-  monthlyReturnRate: number;
-  /** 사용자 정의 레이블 (선택) */
-  label?: string;
-}
-
-
-// ─────────────────────────────────────────────
 // 설정
 // ─────────────────────────────────────────────
 export interface Settings {
@@ -47,6 +31,10 @@ export interface Settings {
   withdrawalRate: number;
   /** 예상 연 물가상승률 (%, 기본 2.5) — 실질 수익률 계산에 사용 */
   inflationRate: number;
+  /** 초기 자산 (기존 자산) */
+  initialAsset: number;
+  /** 초기 부채 (기존 부채) */
+  initialLiability: number;
 }
 
 // ─────────────────────────────────────────────
@@ -74,8 +62,6 @@ export interface MonthlyRecord {
   income: number; // 수입
   fixedExpense: number; // 고정지출
   variableExpense: number; // 변동지출
-  /** 목표 금액 (선택사항, 금전 목표용) */
-  targetAmount?: number;
   debt: number; // 부채 상환 (선택)
   investment: number; // 투자금
   saving: number; // 저축
@@ -89,11 +75,22 @@ export interface Milestone {
   /** 목표 연도 */
   year: number;
   title: string; // 예: "1억 달성", "유럽여행"
-  /** 목표 금액 (선택사항, 금전 목표용) */
   targetAmount?: number;
   done: boolean;
   /** 완료한 날짜 (done=true일 때) */
   doneAt?: string;
+}
+
+
+// ─────────────────────────────────────────────
+// 자산 구간별 목표 수익률 (새로운 코어 엔진)
+// ─────────────────────────────────────────────
+export interface ReturnRateTier {
+  id: string;
+  minAsset: number;
+  maxAsset?: number;
+  monthlyReturnRate: number;
+  label?: string;
 }
 
 // ─────────────────────────────────────────────
@@ -118,9 +115,8 @@ export interface SimulatorInput {
   salaryGrowthRate: number; // 연봉 인상률 (%) → 투자금 증가에 반영
   investmentGrowthRate: number; // 연간 투자금 증가율 (%)
   years: number; // 시뮬레이션 기간 (년)
-  // ─── 자산 구간별 수익률 시스템 (NEW)
-  useVariableReturnRate?: boolean; // true면 구간별, false면 고정
-  returnRateTiers?: ReturnRateTier[]; // 자산 구간별 수익률 목록
+  useVariableReturnRate?: boolean;
+  returnRateTiers?: ReturnRateTier[];
 }
 
 /** 시뮬레이션 월별 결과 한 행 */

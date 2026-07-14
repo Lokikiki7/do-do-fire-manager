@@ -15,7 +15,6 @@ import type {
   Milestone,
   Goal,
   SimulatorInput,
-  ReturnRateTier,
   Currency,
   ThemeMode,
   GoalTerm,
@@ -48,17 +47,8 @@ function normalizeSettings(v: unknown): Settings {
     theme: THEMES.includes(v.theme as ThemeMode) ? (v.theme as ThemeMode) : d.theme,
     withdrawalRate: num(v.withdrawalRate, d.withdrawalRate),
     inflationRate: num(v.inflationRate, d.inflationRate),
-  };
-}
-
-function normalizeReturnRateTier(v: Record<string, unknown>): ReturnRateTier | null {
-  if (typeof v.id !== 'string') return null;
-  return {
-    id: v.id,
-    minAsset: num(v.minAsset, 0),
-    maxAsset: typeof v.maxAsset === 'number' ? v.maxAsset : undefined,
-    monthlyReturnRate: num(v.monthlyReturnRate, 5),
-    label: typeof v.label === 'string' ? v.label : undefined,
+    initialAsset: num(v.initialAsset, d.initialAsset),
+    initialLiability: num(v.initialLiability, d.initialLiability),
   };
 }
 
@@ -72,8 +62,6 @@ function normalizeSimulator(v: unknown): SimulatorInput {
     salaryGrowthRate: num(v.salaryGrowthRate, d.salaryGrowthRate),
     investmentGrowthRate: num(v.investmentGrowthRate, d.investmentGrowthRate),
     years: num(v.years, d.years),
-    useVariableReturnRate: typeof v.useVariableReturnRate === 'boolean' ? v.useVariableReturnRate : false,
-    returnRateTiers: normalizeArray(v.returnRateTiers, normalizeReturnRateTier),
   };
 }
 

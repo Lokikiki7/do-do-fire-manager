@@ -21,6 +21,8 @@ export const DEFAULT_DATA: AppData = {
     theme: 'system',
     withdrawalRate: 4,
     inflationRate: 2.5,
+    initialAsset: 0,
+    initialLiability: 0,
   },
   snapshots: [],
   records: [],
@@ -41,9 +43,6 @@ export const DEFAULT_DATA: AppData = {
     salaryGrowthRate: 3,
     investmentGrowthRate: 3,
     years: 20,
-    // ─── 자산 구간별 수익률 시스템 (NEW)
-    useVariableReturnRate: false,
-    returnRateTiers: [],
   },
 };
 

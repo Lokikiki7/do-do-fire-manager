@@ -74,6 +74,24 @@ export function SettingsPage() {
             />
           </Field>
           <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="초기 자산" hint="현재 보유 중인 자산">
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={settings.initialAsset}
+                onChange={(e) => updateSettings({ initialAsset: parseAmount(e.target.value) })}
+              />
+            </Field>
+            <Field label="초기 부채" hint="현재 있는 빚">
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={settings.initialLiability}
+                onChange={(e) => updateSettings({ initialLiability: parseAmount(e.target.value) })}
+              />
+            </Field>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
             <Field label="FIRE 목표 금액" hint="비워두면 4% 룰 자동 계산값 사용">
               <Input
                 type="number"
