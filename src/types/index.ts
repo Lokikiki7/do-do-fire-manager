@@ -58,6 +58,7 @@ export interface MonthlyRecord {
   income: number; // 수입
   fixedExpense: number; // 고정지출
   variableExpense: number; // 변동지출
+  debt: number; // 부채 상환 (선택)
   investment: number; // 투자금
   saving: number; // 저축
 }
