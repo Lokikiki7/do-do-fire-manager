@@ -45,9 +45,7 @@ export default function App() {
     });
 
     return () => {
-      if (subscription?.unsubscribe) {
-        subscription.unsubscribe();
-      }
+      subscription?.unsubscribe?.();
     };
   }, []);
 
