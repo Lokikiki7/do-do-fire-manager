@@ -39,14 +39,38 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChange((user) => {
+    const subscription = onAuthStateChange((user) => {
       setIsAuthenticated(!!user);
       setLoading(false);
     });
 
-    return () => unsubscribe?.unsubscribe?.();
+    return () => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-
+      <div className="min-h-screen flex items-center justify-center bg-surface">
+        <div className="text-center">
+          <div className="text-3xl font-bold text-accent mb-4">FIRE Manager</div>
+          <div className="text-ink-faint">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
+  return (
+    <AppDataProvider>
+      <ConfirmProvider>
+        <Shell />
+      </ConfirmProvider>
+    </AppDataProvider>
+  );
+}
