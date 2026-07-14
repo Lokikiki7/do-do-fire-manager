@@ -7,7 +7,8 @@ import { useRef, useState } from 'react';
 import { Trash2, Wallet, Pencil, Copy, X } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
-import { Card, SectionTitle, Button, Field, Input, EmptyState, cn } from '@/components/ui';
+import { Card, SectionTitle, Button, Field, Input, EmptyState, cn, SegmentedControl } from '@/components/ui';
+import { BudgetCalendar } from '@/components/budget/BudgetCalendar';
 import { BudgetBarChart } from '@/components/charts';
 import { savingRate } from '@/utils/finance';
 import { parseAmount } from '@/utils/validate';
@@ -43,6 +44,7 @@ export function BudgetPage() {
   const { currency } = data.settings;
   const [month, setMonth] = useState(currentMonth());
   const [form, setForm] = useState<FormState>(EMPTY);
+  const [viewMode, setViewMode] = useState<'table' | 'calendar'>('table');
   const formRef = useRef<HTMLDivElement>(null);
 
   const records = data.records;
@@ -142,11 +144,21 @@ export function BudgetPage() {
         <div ref={formRef}>
           <SectionTitle
             right={
-              existing && (
-                <Button size="sm" variant="ghost" onClick={() => changeMonth(currentMonth())}>
-                  <X size={14} /> 취소
-                </Button>
-              )
+              <div className="flex items-center gap-2">
+                <SegmentedControl
+                  options={[
+                    { value: 'table', label: '테이블' },
+                    { value: 'calendar', label: '달력' },
+                  ]}
+                  value={viewMode}
+                  onChange={(v) => setViewMode(v as 'table' | 'calendar')}
+                />
+                {existing && (
+                  <Button size="sm" variant="ghost" onClick={() => changeMonth(currentMonth())}>
+                    <X size={14} /> 취소
+                  </Button>
+                )}
+              </div>
             }
           >
             {existing ? `${formatMonth(month)} 기록 수정` : '월별 기록 입력'}
@@ -266,11 +278,19 @@ export function BudgetPage() {
         </Card>
       )}
 
-      {/* 기록 테이블 */}
-      <Card>
-        <SectionTitle>기록 내역</SectionTitle>
-        {records.length === 0 ? (
-          <EmptyState
+      {/* 기록 테이블 또는 달력 */}
+      {viewMode === 'calendar' ? (
+        <BudgetCalendar
+          month={month}
+          onMonthChange={changeMonth}
+          records={records}
+          currency={currency}
+        />
+      ) : (
+        <Card>
+          <SectionTitle>기록 내역</SectionTitle>
+          {records.length === 0 ? (
+            <EmptyState
             icon={<Wallet size={32} />}
             title="기록이 없어요"
             desc="수입과 지출을 입력하면 저축률이 자동 계산됩니다."
@@ -356,8 +376,9 @@ export function BudgetPage() {
               </tbody>
             </table>
           </div>
-        )}
-      </Card>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
