@@ -192,4 +192,53 @@ export function DashboardPage() {
   );
 }
 
-// 자�
+// 자산 스냅샷 입력 폼 (인라인)
+function SnapshotForm({ onAdd }: { onAdd: (s: AssetSnapshot) => void }) {
+  const [date, setDate] = useState(todayISO());
+  const [total, setTotal] = useState('');
+  const [liab, setLiab] = useState('');
+  const [error, setError] = useState<string | undefined>();
+
+  const submit = () => {
+    const check = checkAmount(total);
+    if (!check.valid || total.trim() === '') {
+      setError(check.message ?? '총 자산을 입력해주세요');
+      return;
+    }
+    onAdd({ id: uid(), date, totalAssets: parseAmount(total), liabilities: parseAmount(liab) });
+  };
+
+  return (
+    <div className="grid sm:grid-cols-4 gap-3 mb-4 p-3 bg-canvas dark:bg-elevated rounded-xl">
+      <Field label="날짜">
+        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      </Field>
+      <Field label="총 자산" hint={error}>
+        <Input
+          type="number"
+          inputMode="numeric"
+          placeholder="0"
+          value={total}
+          onChange={(e) => {
+            setTotal(e.target.value);
+            setError(undefined);
+          }}
+        />
+      </Field>
+      <Field label="부채">
+        <Input
+          type="number"
+          inputMode="numeric"
+          placeholder="0"
+          value={liab}
+          onChange={(e) => setLiab(e.target.value)}
+        />
+      </Field>
+      <div className="flex items-end">
+        <Button className="w-full" onClick={submit}>
+          추가
+        </Button>
+      </div>
+    </div>
+  );
+}

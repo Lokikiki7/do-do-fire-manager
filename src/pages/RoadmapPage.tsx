@@ -30,7 +30,7 @@ export function RoadmapPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [editAmount, setEditAmount] = useState('');
 
-  const milestones = data.milestones; // 훅에서 이미 연도순 정렬됨
+  const milestones = data.milestones;
   const doneCount = milestones.filter((m) => m.done).length;
   const progress = milestones.length ? (doneCount / milestones.length) * 100 : 0;
 
@@ -59,7 +59,6 @@ export function RoadmapPage() {
     setEditAmount('');
   };
 
-  /** 삭제 전 확인 다이얼로그 */
   const handleRemove = async (id: string, title: string) => {
     if (
       await confirm({
@@ -168,4 +167,55 @@ export function RoadmapPage() {
                     )}
                   >
                     {ms.year}
-             
+                  </span>
+                  <span
+                    className={cn(
+                      'flex-1 transition-all',
+                      ms.done ? 'text-ink-faint line-through' : 'text-ink',
+                    )}
+                  >
+                    {ms.title}
+                  </span>
+                  {ms.targetAmount && editId !== ms.id && (
+                    <button
+                      onClick={() => {
+                        setEditId(ms.id);
+                        setEditAmount(String(ms.targetAmount));
+                      }}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                    >
+                      {formatMoney(ms.targetAmount, 'KRW')}
+                    </button>
+                  )}
+                  {editId === ms.id && (
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      value={editAmount}
+                      onChange={(e) => setEditAmount(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') submitEdit(ms.id);
+                        if (e.key === 'Escape') setEditId(null);
+                      }}
+                      onBlur={() => submitEdit(ms.id)}
+                      autoFocus
+                      className="w-24"
+                    />
+                  )}
+                  <Checkbox checked={ms.done} onChange={() => toggle(ms.id, ms.done)} />
+                  <button
+                    onClick={() => handleRemove(ms.id, ms.title)}
+                    aria-label={`${ms.title} 마일스톤 삭제`}
+                    className="opacity-0 group-hover:opacity-100 text-ink-faint hover:text-negative transition-all"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
