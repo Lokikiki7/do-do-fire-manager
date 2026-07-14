@@ -11,12 +11,23 @@ export function useMetrics() {
   const { snapshots, records, settings } = data;
 
   return useMemo(() => {
+    // Records에서 누적 자산 계산
+    const recordsNet = records.reduce((acc, r) => {
+      const savableAmount = r.income - (r.fixedExpense + r.variableExpense + r.debt);
+      const investmentGain = r.investment * ((r.investmentReturnRate || 0) / 100);
+      return acc + savableAmount + investmentGain;
+    }, 0);
+
+    // 초기자산 + records로부터의 누적 자산
+    const recordsBasedAssets = settings.initialAsset + recordsNet;
+
+    // snapshots가 있으면 그것 사용, 없으면 records 기반 사용
     const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
     const latest = sorted[sorted.length - 1];
     const prev = sorted[sorted.length - 2];
 
-    const totalAssets = latest?.totalAssets ?? 0;
-    const liabilities = latest?.liabilities ?? 0;
+    const totalAssets = latest?.totalAssets ?? recordsBasedAssets;
+    const liabilities = latest?.liabilities ?? settings.initialLiability;
     const netWorth = totalAssets - liabilities;
 
     const prevNet = prev ? prev.totalAssets - prev.liabilities : netWorth;
@@ -48,7 +59,7 @@ export function useMetrics() {
       ruleTarget,
       progress,
       eta,
-      hasData: snapshots.length > 0,
+      hasData: snapshots.length > 0 || records.length > 0,
     };
   }, [snapshots, records, settings]);
 }
