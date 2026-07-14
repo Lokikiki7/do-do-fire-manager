@@ -1,47 +1,79 @@
 import { useState } from 'react';
-import { signUp, signIn } from '@/lib/supabase';
+import { LogOut } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 import { Card, Button, Field, Input } from '@/components/ui';
 
-export function LoginPage() {
+interface LoginPageProps {
+  user: { id: string; email: string } | null;
+  onLogout: () => void;
+}
+
+export function LoginPage({ user }: LoginPageProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+    setLoading(true);
 
-    try {
-      const { error: authError } = isSignUp
-        ? await signUp(email, password)
-        : await signIn(email, password);
-
-      if (authError) {
-        setError(authError.message);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+    if (err) setError(err.message);
+    setLoading(false);
   };
 
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const { error: err } = await supabase.auth.signUp({ email, password });
+    if (err) setError(err.message);
+    setLoading(false);
+  };
+
+  if (user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
+        <Card className="w-full max-w-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 rounded-full bg-accent text-white flex items-center justify-center font-bold">
+              {user.email[0].toUpperCase()}
+            </div>
+            <div>
+              <p className="font-semibold text-ink">{user.email}</p>
+              <p className="text-xs text-ink-faint">로그인됨</p>
+            </div>
+          </div>
+          <Button onClick={async () => await supabase.auth.signOut()} variant="danger" className="w-full">
+            <LogOut size={16} /> 로그아웃
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-surface to-surface-secondary p-4">
-      <Card className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-accent mb-2">🔥 FIRE Manager</h1>
-          <p className="text-ink-faint">경제적 자유를 향한 첫 걸음</p>
+    <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
+      <Card className="w-full max-w-sm">
+        <div className="mb-6 text-center">
+          <h1 className="text-2xl font-bold text-ink mb-2">FIRE Manager</h1>
+          <p className="text-sm text-ink-faint">재정자유 추적 앱</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <div className="mb-4 p-3 rounded-lg bg-negative/10 text-negative text-sm">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
           <Field label="이메일">
             <Input
               type="email"
-              placeholder="you@example.com"
+              placeholder="your@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -58,35 +90,25 @@ export function LoginPage() {
             />
           </Field>
 
-          {error && (
-            <div className="p-3 rounded-lg bg-negative/10 border border-negative/30 text-negative text-sm">
-              {error}
-            </div>
-          )}
-
-          <Button type="submit" disabled={loading} className="w-full">
-            {loading ? '처리 중...' : isSignUp ? '회원가입' : '로그인'}
-          </Button>
+          <div className="space-y-2">
+            <Button type="submit" disabled={loading} className="w-full">
+              {loading ? "로그인 중..." : "로그인"}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleSignup}
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? "가입 중..." : "새 계정 만들기"}
+            </Button>
+          </div>
         </form>
 
-        <div className="mt-6 text-center">
-          <button
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setError('');
-            }}
-            className="text-sm text-ink-faint hover:text-accent transition-colors"
-          >
-            {isSignUp ? '이미 계정이 있으신가요? 로그인' : '계정이 없으신가요? 회원가입'}
-          </button>
-        </div>
-
-        <div className="mt-8 pt-6 border-t border-line/20">
-          <p className="text-xs text-ink-faint text-center">
-            💾 모든 데이터는 클라우드에 안전하게 저장되며,<br />
-            모든 기기에서 동기화됩니다.
-          </p>
-        </div>
+        <p className="text-xs text-ink-faint text-center mt-4">
+          🔒 Supabase로 안전하게 보호됨
+        </p>
       </Card>
     </div>
   );
