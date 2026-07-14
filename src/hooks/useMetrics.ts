@@ -77,4 +77,5 @@ export function useMetrics() {
       hasData: snapshots.length > 0 || records.length > 0,
       recordsNet,
     };
-  }, [snapshots, records, settings, m
+  }, [snapshots, records, settings, milestones]);
+}
