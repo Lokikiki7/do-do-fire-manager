@@ -5,6 +5,9 @@
  * ✅ 수입/지출과 자산의 연동 기능:
  * - snapshots (수동 기록)가 없으면 → records (수입/지출)로 자동 계산
  * - snapshots과 records가 모두 있으면 → snapshots 우선 (사용자의 정정 입력)
+ * 
+ * ✅ 로드맵 마일스톤 연동:
+ * - 완료된 마일스톤의 targetAmount를 totalAssets에 포함
  */
 import { useMemo } from 'react';
 import { useAppData } from '@/hooks/useAppData';
@@ -40,4 +43,39 @@ export function useMetrics() {
 
     // snapshots이 있으면 사용, 없으면 records + 초기 자산 + 완료 마일스톤에서 계산
     const totalAssets = latest?.totalAssets ?? (recordsNet + settings.initialAsset + completedMilestoneAmount);
- 
+    const liabilities = latest?.liabilities ?? settings.initialLiability;
+    const netWorth = totalAssets - liabilities;
+
+    const prevNet = prev
+      ? prev.totalAssets - prev.liabilities
+      : (recordsNet + initialNetWorth + completedMilestoneAmount);
+    const dayChange = netWorth - prevNet;
+    const dayChangePct = prevNet !== 0 ? (dayChange / prevNet) * 100 : 0;
+
+    // 최근 월 투자금
+    const lastRecord = [...records].sort((a, b) => a.month.localeCompare(b.month)).pop();
+    const monthlyInvestment = lastRecord?.investment ?? 0;
+
+    // 4% 룰 기반 목표액 (설정값이 있으면 우선)
+    const ruleTarget = fireNumberByRule(settings.annualExpense, settings.withdrawalRate);
+    const target = settings.fireTarget || ruleTarget;
+
+    const progress = fireProgress(netWorth, target);
+    const eta = estimateFireDate(netWorth, target, monthlyInvestment || 1, settings.defaultReturnRate);
+
+    return {
+      totalAssets,
+      liabilities,
+      netWorth,
+      dayChange,
+      dayChangePct,
+      monthlyInvestment,
+      target,
+      ruleTarget,
+      progress,
+      eta,
+      hasData: snapshots.length > 0 || records.length > 0,
+      recordsNet,
+    };
+  }, [snapshots, records, settings, milestones]);
+}
