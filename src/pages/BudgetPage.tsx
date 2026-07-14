@@ -30,6 +30,7 @@ function toForm(r: MonthlyRecord): FormState {
     income: String(r.income || ''),
     fixedExpense: String(r.fixedExpense || ''),
     variableExpense: String(r.variableExpense || ''),
+    debt: String(r.debt || ''),
     investment: String(r.investment || ''),
     saving: String(r.saving || ''),
   };

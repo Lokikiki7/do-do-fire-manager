@@ -94,6 +94,7 @@ function normalizeRecord(v: Record<string, unknown>): MonthlyRecord | null {
     income: num(v.income),
     fixedExpense: num(v.fixedExpense),
     variableExpense: num(v.variableExpense),
+    debt: num(v.debt),
     investment: num(v.investment),
     saving: num(v.saving),
   };
@@ -129,7 +130,6 @@ function normalizeGoal(v: Record<string, unknown>): Goal | null {
  */
 export function normalizeAppData(input: unknown): AppData | null {
   if (!isObj(input)) return null;
-  // 최소 요건: version이 1이고 settings 객체가 존재해야 우리 앱 데이터로 간주
   if (input.version !== 1 || !isObj(input.settings)) return null;
 
   return {
