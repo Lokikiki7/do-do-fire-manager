@@ -1,11 +1,3 @@
-/**
- * 원천 데이터(AppData)에서 대시보드/통계가 공통으로 쓰는 파생 지표를 계산.
- * useMemo로 감싸 재계산을 최소화하고, 페이지 간 계산 로직 중복을 없앤다.
- *
- * ✅ 수입/지출과 자산의 연동 기능:
- * - snapshots (수동 기록)가 없으면 → records (수입/지출)로 자동 계산
- * - snapshots과 records가 모두 있으면 → snapshots 우선 (사용자의 정정 입력)
- */
 import { useMemo } from 'react';
 import { useAppData } from '@/hooks/useAppData';
 import { fireNumberByRule, fireProgress, estimateFireDate } from '@/utils/finance';
@@ -40,5 +32,34 @@ export function useMetrics() {
 
     const prevNet = prev
       ? prev.totalAssets - prev.liabilities
-      : (recordsNet + initialNetWorth);
-    const dayChange = netWorth - prevNe
+      : recordsNet + initialNetWorth;
+    const dayChange = netWorth - prevNet;
+    const dayChangePct = prevNet !== 0 ? (dayChange / prevNet) * 100 : 0;
+
+    // 최근 월 투자금
+    const lastRecord = [...records].sort((a, b) => a.month.localeCompare(b.month)).pop();
+    const monthlyInvestment = lastRecord?.investment ?? 0;
+
+    // 4% 룰 기반 목표액 (설정값이 있으면 우선)
+    const ruleTarget = fireNumberByRule(settings.annualExpense, settings.withdrawalRate);
+    const target = settings.fireTarget || ruleTarget;
+
+    const progress = fireProgress(netWorth, target);
+    const eta = estimateFireDate(netWorth, target, monthlyInvestment || 1, settings.defaultReturnRate);
+
+    return {
+      totalAssets,
+      liabilities,
+      netWorth,
+      dayChange,
+      dayChangePct,
+      monthlyInvestment,
+      target,
+      ruleTarget,
+      progress,
+      eta,
+      hasData: snapshots.length > 0 || records.length > 0,
+      recordsNet,
+    };
+  }, [snapshots, records, settings]);
+}
