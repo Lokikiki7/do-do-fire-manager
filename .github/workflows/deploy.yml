@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm install --legacy-peer-deps
       # 배포 전 품질 게이트: 린트 → 테스트 → 빌드 순으로 통과해야 배포
       - run: npm run lint
       - run: npm test
