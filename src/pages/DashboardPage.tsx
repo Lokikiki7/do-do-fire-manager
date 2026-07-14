@@ -50,7 +50,10 @@ export function DashboardPage() {
     return [];
   })();
 
-  const upcomingMilestones = data.milestones.filter((x) => !x.done).slice(0, 3);
+  // targetAmount가 있으면 완료 여부와 상관없이 표시
+  const upcomingMilestones = data.milestones
+    .filter((x) => !x.done || x.targetAmount)
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
