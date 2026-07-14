@@ -24,16 +24,6 @@ export function LoginPage({ user }: LoginPageProps) {
     setLoading(false);
   };
 
-  const handleSignup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    const { error: err } = await supabase.auth.signUp({ email, password });
-    if (err) setError(err.message);
-    setLoading(false);
-  };
-
   if (user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
@@ -90,20 +80,9 @@ export function LoginPage({ user }: LoginPageProps) {
             />
           </Field>
 
-          <div className="space-y-2">
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "로그인 중..." : "로그인"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleSignup}
-              disabled={loading}
-              className="w-full"
-            >
-              {loading ? "가입 중..." : "새 계정 만들기"}
-            </Button>
-          </div>
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "로그인 중..." : "로그인"}
+          </Button>
         </form>
 
         <p className="text-xs text-ink-faint text-center mt-4">
