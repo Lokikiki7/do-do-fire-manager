@@ -7,7 +7,6 @@ import { Sidebar, MobileNav } from '@/components/layout/Nav';
 import { Header } from '@/components/layout/Header';
 import { PageRouter, PAGE_META } from '@/pages/PageRouter';
 import { LoginPage } from '@/pages/LoginPage';
-import { Button } from '@/components/ui';
 import { LogOut } from 'lucide-react';
 import { onAuthStateChange, supabase, signOut } from '@/lib/supabase';
 import { saveUserData } from '@/lib/supabase-sync';

@@ -3,28 +3,23 @@
  * 총자산/순자산/월투자금/FIRE달성률/오늘의 변화 + 수입/지출 그래프 + 로드맵 미리보기.
  */
 import { useState } from 'react';
-import { Wallet, PiggyBank, TrendingUp, Flame, Plus, Check } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Flame, Check } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useMetrics } from '@/hooks/useMetrics';
 import { StatCard, ProgressRing } from '@/components/ui/Stat';
-import { Card, SectionTitle, Button, Field, Input, EmptyState, cn } from '@/components/ui';
+import { Card, SectionTitle, Button, cn } from '@/components/ui';
 import { BudgetBarChart } from '@/components/charts';
 import {
   formatMoney,
   formatShort,
   formatDateKo,
   formatPercent,
-  todayISO,
-  uid,
 } from '@/utils/format';
-import { parseAmount, checkAmount } from '@/utils/validate';
-import type { AssetSnapshot } from '@/types';
 
 export function DashboardPage() {
-  const { data, addSnapshot } = useAppData();
+  const { data } = useAppData();
   const m = useMetrics();
   const { currency, name } = data.settings;
-  const [showAdd, setShowAdd] = useState(false);
   const [syncMessage, setSyncMessage] = useState('');
 
   // 수입/지출 차트 데이터
@@ -111,11 +106,13 @@ export function DashboardPage() {
           {budgetChartData.length > 0 ? (
             <BudgetBarChart data={budgetChartData} currency={currency} />
           ) : (
-            <EmptyState
-              icon={<Wallet size={32} />}
-              title="아직 수입/지출 기록이 없어요"
-              desc="'수입 / 지출' 페이지에서 월별 기록을 입력하면 그래프가 그려집니다."
-            />
+            <div className="py-12 text-center">
+              <Wallet size={32} className="mx-auto mb-3 text-ink-faint" />
+              <p className="font-semibold text-ink">아직 수입/지출 기록이 없어요</p>
+              <p className="text-sm text-ink-soft mt-1">
+                '수입 / 지출' 페이지에서 월별 기록을 입력하면 그래프가 그려집니다.
+              </p>
+            </div>
           )}
         </Card>
 
@@ -167,57 +164,6 @@ export function DashboardPage() {
           <p className="text-sm text-ink-faint py-4">설정된 마일스톤이 모두 완료됐어요! 🎉</p>
         )}
       </Card>
-    </div>
-  );
-}
-
-// 자산 스냅샷 입력 폼 (인라인)
-function SnapshotForm({ onAdd }: { onAdd: (s: AssetSnapshot) => void }) {
-  const [date, setDate] = useState(todayISO());
-  const [total, setTotal] = useState('');
-  const [liab, setLiab] = useState('');
-  const [error, setError] = useState<string | undefined>();
-
-  const submit = () => {
-    const check = checkAmount(total);
-    if (!check.valid || total.trim() === '') {
-      setError(check.message ?? '총 자산을 입력해주세요');
-      return;
-    }
-    onAdd({ id: uid(), date, totalAssets: parseAmount(total), liabilities: parseAmount(liab) });
-  };
-
-  return (
-    <div className="grid sm:grid-cols-4 gap-3 mb-4 p-3 bg-canvas dark:bg-elevated rounded-xl">
-      <Field label="날짜">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      </Field>
-      <Field label="총 자산" hint={error}>
-        <Input
-          type="number"
-          inputMode="numeric"
-          placeholder="0"
-          value={total}
-          onChange={(e) => {
-            setTotal(e.target.value);
-            setError(undefined);
-          }}
-        />
-      </Field>
-      <Field label="부채">
-        <Input
-          type="number"
-          inputMode="numeric"
-          placeholder="0"
-          value={liab}
-          onChange={(e) => setLiab(e.target.value)}
-        />
-      </Field>
-      <div className="flex items-end">
-        <Button className="w-full" onClick={submit}>
-          추가
-        </Button>
-      </div>
     </div>
   );
 }
