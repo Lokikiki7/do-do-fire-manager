@@ -3,7 +3,7 @@
  * UI와 완전히 분리되어 있어 단위 테스트가 쉽고,
  * 계산기/시뮬레이터/대시보드가 같은 로직을 공유한다.
  */
-import type { SimulatorInput, SimulationPoint, ReturnRateTier } from '@/types';
+import type { SimulatorInput, SimulationPoint, ReturnRateTier, DailyRecord } from '@/types';
 
 /**
  * 실질 수익률 (피셔 방정식).
@@ -163,4 +163,59 @@ export function savingRate(
 ): number {
   if (income <= 0) return 0;
   return ((investment + saving) / income) * 100;
+}
+
+/** 자산 추이의 한 지점 (수입/지출 기록에서 파생) */
+export interface AssetPoint {
+  date: string; // YYYY-MM-DD
+  /** 해당 시점 누적 총자산 (현금성 + 투자 자산) */
+  totalAssets: number;
+  /** 해당 시점 남은 부채 */
+  liabilities: number;
+  /** 해당 시점 순자산 (총자산 - 부채) */
+  netWorth: number;
+  /** 그날의 순자산 증감 */
+  change: number;
+}
+
+/**
+ * 수입/지출 기록에서 자산 성장 추이를 계산한다.
+ *
+ * 회계 원칙:
+ *   총자산 = 초기자산 + Σ(수입 - 고정지출 - 변동지출 - 부채상환 + 투자수익)
+ *   부채   = 초기부채 - Σ(부채상환)                        // 0 밑으로는 안 내려감
+ *   순자산 = 총자산 - 부채
+ *
+ * 부채 상환은 현금(자산)과 부채를 같은 금액만큼 줄이므로 순자산은 변하지 않는다.
+ * (예전에는 자산만 줄고 부채는 그대로여서, 빚을 갚을수록 순자산이 깎이는 버그가 있었다)
+ *
+ * 남은 부채보다 많이 상환한 초과분은 순수 지출로 처리한다.
+ *
+ * 대시보드 차트 / 지표 카드 / 통계가 모두 이 함수 하나를 쓰므로
+ * 어느 화면에서도 숫자가 어긋나지 않는다.
+ */
+export function buildAssetSeries(
+  records: DailyRecord[],
+  initialAsset: number,
+  initialLiability: number,
+): AssetPoint[] {
+  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  let assets = initialAsset;
+  let liabilities = Math.max(0, initialLiability);
+  let prevNet = assets - liabilities;
+
+  return sorted.map((r) => {
+    // 실제로 부채를 줄이는 금액 (남은 부채 한도 내)
+    const debtPaid = Math.min(Math.max(0, r.debt), liabilities);
+    const gain = r.investment * ((r.investmentReturnRate || 0) / 100);
+
+    assets += r.income - r.fixedExpense - r.variableExpense - r.debt + gain;
+    liabilities -= debtPaid;
+
+    const netWorth = assets - liabilities;
+    const change = netWorth - prevNet;
+    prevNet = netWorth;
+
+    return { date: r.date, totalAssets: assets, liabilities, netWorth, change };
+  });
 }

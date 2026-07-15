@@ -11,8 +11,9 @@ import {
   savingRate,
   realReturnRate,
   toPresentValue,
+  buildAssetSeries,
 } from '@/utils/finance';
-import type { SimulatorInput } from '@/types';
+import type { SimulatorInput, DailyRecord } from '@/types';
 
 describe('realReturnRate (피셔 방정식)', () => {
   it('인플레 0이면 실질 = 명목', () => {
@@ -157,5 +158,87 @@ describe('savingRate (저축률)', () => {
   });
   it('전액 저축 시 100%', () => {
     expect(savingRate(1000, 500, 500)).toBe(100);
+  });
+});
+
+describe('buildAssetSeries — 수입/지출 기록 기반 자산 추이', () => {
+  const rec = (date: string, p: Partial<DailyRecord> = {}): DailyRecord => ({
+    id: date,
+    date,
+    income: 0,
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: 0,
+    investment: 0,
+    saving: 0,
+    ...p,
+  });
+
+  it('기록이 없으면 빈 배열', () => {
+    expect(buildAssetSeries([], 1000, 0)).toEqual([]);
+  });
+
+  it('초기자산에 순저축을 누적한다', () => {
+    const s = buildAssetSeries(
+      [rec('2026-01-01', { income: 500, fixedExpense: 200 })],
+      1000,
+      0,
+    );
+    expect(s[0].change).toBe(300);
+    expect(s[0].totalAssets).toBe(1300);
+    expect(s[0].netWorth).toBe(1300);
+  });
+
+  it('투자 수익률을 반영한다', () => {
+    const s = buildAssetSeries(
+      [rec('2026-01-01', { income: 100, investment: 1000, investmentReturnRate: 10 })],
+      0,
+      0,
+    );
+    // 순저축 100(투자는 자산 내 이동이라 차감 안 함) + 투자수익 100
+    expect(s[0].change).toBe(200);
+  });
+
+  it('부채를 순자산에서 차감한다', () => {
+    const s = buildAssetSeries([rec('2026-01-01', { income: 100 })], 1000, 400);
+    expect(s[0].totalAssets).toBe(1100);
+    expect(s[0].liabilities).toBe(400);
+    expect(s[0].netWorth).toBe(700);
+  });
+
+  it('부채 상환은 자산과 부채를 같이 줄여 순자산이 변하지 않는다', () => {
+    const s = buildAssetSeries([rec('2026-01-01', { debt: 300 })], 1000, 400);
+    expect(s[0].totalAssets).toBe(700); // 현금 300 감소
+    expect(s[0].liabilities).toBe(100); // 부채 300 감소
+    expect(s[0].netWorth).toBe(600); // 순자산 그대로 (1000 - 400)
+    expect(s[0].change).toBe(0);
+  });
+
+  it('남은 부채보다 많이 상환하면 초과분은 지출로 처리한다', () => {
+    const s = buildAssetSeries([rec('2026-01-01', { debt: 500 })], 1000, 200);
+    expect(s[0].totalAssets).toBe(500); // 500 전액 유출
+    expect(s[0].liabilities).toBe(0); // 부채는 0에서 멈춤
+    expect(s[0].netWorth).toBe(500);
+    expect(s[0].change).toBe(-300); // 초과 상환 300은 순손실
+  });
+
+  it('부채를 다 갚은 뒤에는 순자산이 초기 자산과 같아진다', () => {
+    const s = buildAssetSeries(
+      [rec('2026-01-01', { debt: 200 }), rec('2026-01-02', { debt: 200 })],
+      1000,
+      400,
+    );
+    expect(s[1].liabilities).toBe(0);
+    expect(s[1].netWorth).toBe(600);
+  });
+
+  it('날짜순으로 정렬해 누적한다 (입력 순서 무관)', () => {
+    const s = buildAssetSeries(
+      [rec('2026-01-03', { income: 30 }), rec('2026-01-01', { income: 10 }), rec('2026-01-02', { income: 20 })],
+      0,
+      0,
+    );
+    expect(s.map((p) => p.date)).toEqual(['2026-01-01', '2026-01-02', '2026-01-03']);
+    expect(s.map((p) => p.totalAssets)).toEqual([10, 30, 60]);
   });
 });

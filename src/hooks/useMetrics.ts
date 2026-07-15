@@ -1,40 +1,41 @@
 /**
  * 원천 데이터(AppData)에서 대시보드/통계가 공통으로 쓰는 파생 지표를 계산.
- * useMemo로 감싸 재계산을 최소화하고, 페이지 간 계산 로직 중복을 없앤다.
+ *
+ * 자산은 "수입/지출 기록"에서만 파생된다 (단일 진실 공급원).
+ * 과거에는 수동 자산 스냅샷이 있으면 그쪽을 우선했는데, 그 결과
+ * 지표 카드와 자산 성장 그래프가 서로 다른 값을 보는 문제가 있었다.
  */
 import { useMemo } from 'react';
 import { useAppData } from '@/hooks/useAppData';
-import { fireNumberByRule, fireProgress, estimateFireDate } from '@/utils/finance';
+import {
+  fireNumberByRule,
+  fireProgress,
+  estimateFireDate,
+  buildAssetSeries,
+} from '@/utils/finance';
 
 export function useMetrics() {
   const { data } = useAppData();
-  const { snapshots, records, settings } = data;
+  const { records, settings } = data;
 
   return useMemo(() => {
-    // Records에서 누적 자산 계산
-    const recordsNet = records.reduce((acc, r) => {
-      const savableAmount = r.income - (r.fixedExpense + r.variableExpense + r.debt);
-      const investmentGain = r.investment * ((r.investmentReturnRate || 0) / 100);
-      return acc + savableAmount + investmentGain;
-    }, 0);
+    // 수입/지출 기록 → 자산 추이 (차트와 동일한 함수)
+    const series = buildAssetSeries(records, settings.initialAsset, settings.initialLiability);
+    const latest = series[series.length - 1];
 
-    // 초기자산 + records로부터의 누적 자산
-    const recordsBasedAssets = settings.initialAsset + recordsNet;
-
-    // snapshots가 있으면 그것 사용, 없으면 records 기반 사용
-    const sorted = [...snapshots].sort((a, b) => a.date.localeCompare(b.date));
-    const latest = sorted[sorted.length - 1];
-    const prev = sorted[sorted.length - 2];
-
-    const totalAssets = latest?.totalAssets ?? recordsBasedAssets;
-    const liabilities = latest?.liabilities ?? settings.initialLiability;
+    const totalAssets = latest?.totalAssets ?? settings.initialAsset;
+    // 부채는 상환 기록만큼 줄어든다 (기록이 없으면 초기 부채 그대로)
+    const liabilities = latest?.liabilities ?? Math.max(0, settings.initialLiability);
     const netWorth = totalAssets - liabilities;
+    // 지금까지 실제로 갚은 부채 (초기 부채 - 남은 부채)
+    const debtPaid = Math.max(0, Math.max(0, settings.initialLiability) - liabilities);
 
-    const prevNet = prev ? prev.totalAssets - prev.liabilities : netWorth;
-    const dayChange = netWorth - prevNet;
-    const dayChangePct = prevNet !== 0 ? (dayChange / prevNet) * 100 : 0;
+    // 최근 기록일의 순자산 증감 (기록이 없으면 0)
+    const dayChange = latest?.change ?? 0;
+    const prevNet = netWorth - dayChange;
+    const dayChangePct = prevNet !== 0 ? (dayChange / Math.abs(prevNet)) * 100 : 0;
 
-    const lastRecord = [...records].sort((a, b) => a.date.localeCompare(b.date)).pop();
+    const lastRecord = records.length ? [...records].sort((a, b) => a.date.localeCompare(b.date)).pop() : undefined;
     const monthlyInvestment = lastRecord?.investment ?? 0;
 
     const ruleTarget = fireNumberByRule(settings.annualExpense, settings.withdrawalRate);
@@ -49,8 +50,11 @@ export function useMetrics() {
     );
 
     return {
+      /** 수입/지출 기록에서 파생된 자산 추이 — 차트가 그대로 사용 */
+      series,
       totalAssets,
       liabilities,
+      debtPaid,
       netWorth,
       dayChange,
       dayChangePct,
@@ -59,7 +63,7 @@ export function useMetrics() {
       ruleTarget,
       progress,
       eta,
-      hasData: snapshots.length > 0 || records.length > 0,
+      hasData: records.length > 0,
     };
-  }, [snapshots, records, settings]);
+  }, [records, settings]);
 }

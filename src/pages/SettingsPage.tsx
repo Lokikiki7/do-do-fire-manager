@@ -87,7 +87,7 @@ export function SettingsPage({ user }: { user: User | null }) {
                 onChange={(e) => updateSettings({ initialAsset: parseAmount(e.target.value) })}
               />
             </Field>
-            <Field label="초기 부채" hint="현재 있는 빚">
+            <Field label="초기 부채" hint="수입/지출의 '부채 상환' 기록만큼 자동으로 줄어듭니다">
               <Input
                 type="number"
                 inputMode="numeric"

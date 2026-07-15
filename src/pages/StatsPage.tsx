@@ -4,13 +4,14 @@ import { useAppData } from '@/hooks/useAppData';
 import { Card, SectionTitle, EmptyState } from '@/components/ui';
 import { StatCard } from '@/components/ui/Stat';
 import { CompositionPie, PIE_COLORS } from '@/components/charts';
-import { savingRate } from '@/utils/finance';
+import { savingRate, buildAssetSeries } from '@/utils/finance';
 import { formatMoney, formatPercent, formatShort } from '@/utils/format';
 
 export function StatsPage() {
   const { data } = useAppData();
   const { currency } = data.settings;
-  const { records, snapshots } = data;
+  const { records } = data;
+  const { initialAsset, initialLiability } = data.settings;
 
   const stats = useMemo(() => {
     if (records.length === 0) return null;
@@ -27,16 +28,19 @@ export function StatsPage() {
     const invest = records.reduce((s, r) => s + r.investment, 0);
     const save = records.reduce((s, r) => s + r.saving, 0);
 
+    // 자산 성장률도 수입/지출 기록에서 파생 (대시보드 그래프와 동일한 소스)
+    const series = buildAssetSeries(records, initialAsset, initialLiability);
+    const first = series[0];
+    const last = series[series.length - 1];
     let growth = 0;
-    if (snapshots.length >= 2) {
-      const first = snapshots[0].totalAssets - snapshots[0].liabilities;
-      const last =
-        snapshots[snapshots.length - 1].totalAssets - snapshots[snapshots.length - 1].liabilities;
-      growth = first !== 0 ? ((last - first) / Math.abs(first)) * 100 : 0;
+    if (first && last && series.length >= 2) {
+      // 첫 기록 "직전"의 순자산을 기준선으로 삼아야 첫날 저축분이 성장에 포함된다
+      const base = first.netWorth - first.change;
+      growth = base !== 0 ? ((last.netWorth - base) / Math.abs(base)) * 100 : 0;
     }
 
     return { avgSaving, avgInvest, fixed, variable, invest, save, growth };
-  }, [records, snapshots]);
+  }, [records, initialAsset, initialLiability]);
 
   if (!stats) {
     return (

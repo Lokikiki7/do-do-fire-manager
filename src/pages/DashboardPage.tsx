@@ -1,35 +1,27 @@
 /**
  * 대시보드 — 앱의 첫 화면.
  * 총자산/순자산/월투자금/FIRE달성률/오늘의 변화 + 자산 성장 그래프 + 로드맵 미리보기.
+ *
+ * 자산 성장 그래프는 "수입/지출" 기록에서 자동으로 파생된다.
+ * (예전의 수동 "자산 기록" 입력은 수입/지출과 중복 + 지표와 값이 어긋나 제거)
  */
-import { useState } from 'react';
-import { Wallet, PiggyBank, TrendingUp, Flame, Plus } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Flame, ArrowRight, Landmark } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useMetrics } from '@/hooks/useMetrics';
 import { StatCard, ProgressRing } from '@/components/ui/Stat';
-import { Card, SectionTitle, Button, Field, Input, EmptyState, cn } from '@/components/ui';
+import { Card, SectionTitle, Button, EmptyState, cn } from '@/components/ui';
 import { AssetAreaChart } from '@/components/charts';
-import {
-  formatMoney,
-  formatShort,
-  formatDateKo,
-  formatPercent,
-  todayISO,
-  uid,
-} from '@/utils/format';
-import { parseAmount, checkAmount } from '@/utils/validate';
-import type { AssetSnapshot } from '@/types';
+import { formatMoney, formatShort, formatDateKo, formatPercent } from '@/utils/format';
 
 export function DashboardPage() {
-  const { data, addSnapshot } = useAppData();
+  const { data } = useAppData();
   const m = useMetrics();
   const { currency, name } = data.settings;
-  const [showAdd, setShowAdd] = useState(false);
 
-  // 자산 그래프 데이터 (날짜 → 순자산)
-  const chartData = data.snapshots.map((s) => ({
-    x: s.date.slice(5), // MM-DD
-    total: s.totalAssets - s.liabilities,
+  // 자산 그래프 데이터 — 수입/지출 기록에서 파생 (지표 카드와 동일한 계산)
+  const chartData = m.series.map((p) => ({
+    x: p.date.slice(5), // MM-DD
+    total: p.netWorth,
   }));
 
   const upcomingMilestones = data.milestones.filter((x) => !x.done).slice(0, 3);
@@ -62,46 +54,56 @@ export function DashboardPage() {
           accent="blue"
           delay={0.1}
         />
-        <StatCard
-          label="오늘의 변화"
-          value={`${m.dayChange >= 0 ? '+' : ''}${formatShort(m.dayChange, currency)}`}
-          delta={formatPercent(m.dayChangePct)}
-          deltaType={m.dayChange >= 0 ? 'up' : 'down'}
-          icon={<Flame size={16} />}
-          accent={m.dayChange >= 0 ? 'green' : 'red'}
-          delay={0.15}
-        />
+        {m.liabilities > 0 ? (
+          <StatCard
+            label="남은 부채"
+            value={formatMoney(m.liabilities, currency)}
+            delta={m.debtPaid > 0 ? `${formatShort(m.debtPaid, currency)} 상환` : undefined}
+            deltaType="up"
+            icon={<Landmark size={16} />}
+            accent="red"
+            delay={0.15}
+          />
+        ) : (
+          <StatCard
+            label="최근 변화"
+            value={`${m.dayChange >= 0 ? '+' : ''}${formatShort(m.dayChange, currency)}`}
+            delta={formatPercent(m.dayChangePct)}
+            deltaType={m.dayChange >= 0 ? 'up' : 'down'}
+            icon={<Flame size={16} />}
+            accent={m.dayChange >= 0 ? 'green' : 'red'}
+            delay={0.15}
+          />
+        )}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* 자산 성장 그래프 */}
+        {/* 자산 성장 그래프 — 수입/지출 기록에서 자동 생성 */}
         <Card className="lg:col-span-2" delay={0.2}>
           <SectionTitle
             right={
-              <Button size="sm" variant="ghost" onClick={() => setShowAdd((v) => !v)}>
-                <Plus size={15} /> 자산 기록
+              <Button size="sm" variant="ghost" onClick={() => (window.location.hash = '/budget')}>
+                수입/지출 <ArrowRight size={14} />
               </Button>
             }
           >
             자산 성장 추이
           </SectionTitle>
 
-          {showAdd && (
-            <SnapshotForm
-              onAdd={(s) => {
-                addSnapshot(s);
-                setShowAdd(false);
-              }}
-            />
-          )}
-
           {chartData.length > 0 ? (
-            <AssetAreaChart data={chartData} currency={currency} />
+            <>
+              <AssetAreaChart data={chartData} currency={currency} />
+              <p className="text-xs text-ink-faint mt-3">
+                수입/지출 기록 {m.series.length}건에서 자동 계산됩니다 · 초기 자산{' '}
+                {formatShort(data.settings.initialAsset, currency)} 기준
+                {m.debtPaid > 0 && ` · 부채 ${formatShort(m.debtPaid, currency)} 상환 반영`}
+              </p>
+            </>
           ) : (
             <EmptyState
               icon={<Wallet size={32} />}
-              title="아직 자산 기록이 없어요"
-              desc="'자산 기록' 버튼으로 오늘의 총자산을 입력하면 그래프가 그려집니다."
+              title="아직 기록이 없어요"
+              desc="'수입/지출'에서 하루만 기록해도 자산 성장 그래프가 자동으로 그려집니다."
             />
           )}
         </Card>
@@ -149,57 +151,6 @@ export function DashboardPage() {
           <p className="text-sm text-ink-faint py-4">설정된 마일스톤이 모두 완료됐어요! 🎉</p>
         )}
       </Card>
-    </div>
-  );
-}
-
-// 자산 스냅샷 입력 폼 (인라인)
-function SnapshotForm({ onAdd }: { onAdd: (s: AssetSnapshot) => void }) {
-  const [date, setDate] = useState(todayISO());
-  const [total, setTotal] = useState('');
-  const [liab, setLiab] = useState('');
-  const [error, setError] = useState<string | undefined>();
-
-  const submit = () => {
-    const check = checkAmount(total);
-    if (!check.valid || total.trim() === '') {
-      setError(check.message ?? '총 자산을 입력해주세요');
-      return;
-    }
-    onAdd({ id: uid(), date, totalAssets: parseAmount(total), liabilities: parseAmount(liab) });
-  };
-
-  return (
-    <div className="grid sm:grid-cols-4 gap-3 mb-4 p-3 bg-canvas dark:bg-elevated rounded-xl">
-      <Field label="날짜">
-        <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-      </Field>
-      <Field label="총 자산" hint={error}>
-        <Input
-          type="number"
-          inputMode="numeric"
-          placeholder="0"
-          value={total}
-          onChange={(e) => {
-            setTotal(e.target.value);
-            setError(undefined);
-          }}
-        />
-      </Field>
-      <Field label="부채">
-        <Input
-          type="number"
-          inputMode="numeric"
-          placeholder="0"
-          value={liab}
-          onChange={(e) => setLiab(e.target.value)}
-        />
-      </Field>
-      <div className="flex items-end">
-        <Button className="w-full" onClick={submit}>
-          추가
-        </Button>
-      </div>
     </div>
   );
 }
