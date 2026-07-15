@@ -52,6 +52,30 @@ interface SyncContextValue {
 
 const SyncContext = createContext<SyncContextValue | null>(null);
 
+/**
+ * ISO 문자열을 숫자(ms)로 안전 변환.
+ * Supabase는 '+00:00', JS는 'Z' 형식을 쓰므로 문자열 사전순 비교는 틀어질 수 있다
+ * → 반드시 Date.parse 기반 수치 비교를 사용한다.
+ */
+function ts(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  const n = Date.parse(iso);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+/**
+ * 사실상 '빈' 데이터인지 (기록/스냅샷/목표/마일스톤이 전혀 없음).
+ * 빈 로컬이 내용 있는 클라우드를 덮어쓰는 사고를 막는 안전장치로 쓴다.
+ */
+function isEmptyData(d: AppData): boolean {
+  return (
+    d.snapshots.length === 0 &&
+    d.records.length === 0 &&
+    d.goals.length === 0 &&
+    d.milestones.length === 0
+  );
+}
+
 const META_KEY = 'fire-manager:sync-meta';
 interface SyncMeta {
   lastSyncedAt: string | null;
@@ -92,6 +116,13 @@ export function SyncProvider({ user, children }: { user: User | null; children: 
   const lastAppliedRemoteJsonRef = useRef<string | null>(null);
   /** 마지막으로 업로드에 성공한 스냅샷 */
   const lastPushedJsonRef = useRef<string | null>(null);
+  /**
+   * 마운트(또는 로그인 전환) 시점의 로컬 스냅샷.
+   * 데이터 effect는 마운트 직후에도 한 번 실행되는데, 이때를 '사용자 수정'으로
+   * 오인해 lastLocalEditAt을 기록하면 hydrate가 "로컬이 더 최신"이라 착각하고
+   * 빈 로컬을 클라우드에 업로드해 버린다 → 기준선과 같으면 수정으로 치지 않는다.
+   */
+  const baselineJsonRef = useRef<string | null>(null);
   const dataRef = useRef<AppData>(data);
   dataRef.current = data;
   const uploadTimer = useRef<number>();
@@ -151,17 +182,26 @@ export function SyncProvider({ user, children }: { user: User | null; children: 
 
       const localEditedSinceSync =
         !!meta.lastLocalEditAt &&
-        (!meta.lastSyncedAt || meta.lastLocalEditAt > meta.lastSyncedAt);
+        (!meta.lastSyncedAt || ts(meta.lastLocalEditAt) > ts(meta.lastSyncedAt));
       const remoteNewerThanLocalEdit =
-        !meta.lastLocalEditAt || remote.updatedAt > meta.lastLocalEditAt;
+        !meta.lastLocalEditAt || ts(remote.updatedAt) > ts(meta.lastLocalEditAt);
 
-      if (!localEditedSinceSync || remoteNewerThanLocalEdit) {
+      // 안전장치: 로컬이 사실상 비어 있고 원격에 내용이 있으면, 판정과 무관하게
+      // 절대 원격을 덮어쓰지 않고 원격을 채택한다. (새 기기/캐시 삭제 후 첫 실행 보호)
+      const localEmptyRemoteHasData =
+        isEmptyData(dataRef.current) && !isEmptyData(remote.data);
+
+      if (!localEditedSinceSync || remoteNewerThanLocalEdit || localEmptyRemoteHasData) {
         // 원격 채택
         const json = JSON.stringify(remote.data);
         lastAppliedRemoteJsonRef.current = json;
         lastPushedJsonRef.current = json;
+        baselineJsonRef.current = json;
         hydratedRef.current = true;
         replaceAll(remote.data);
+        // 원격을 채택했으니 과거의 로컬 수정 기록은 무효화 → 다음 실행에서
+        // "로컬이 더 최신" 오판이 반복되지 않도록 초기화한다.
+        saveMeta({ lastSyncedAt: remote.updatedAt, lastLocalEditAt: null });
         markSynced(remote.updatedAt);
       } else {
         // 로컬이 더 최신 → 업로드
@@ -191,6 +231,8 @@ export function SyncProvider({ user, children }: { user: User | null; children: 
     lastAppliedRemoteJsonRef.current = null;
     lastPushedJsonRef.current = null;
     pendingRef.current = false;
+    // 로그인/로그아웃 전환 시점의 데이터를 기준선으로 → 전환 자체를 수정으로 오인 방지
+    baselineJsonRef.current = JSON.stringify(dataRef.current);
     if (!enabled) {
       setStatus('disabled');
       setErrorMessage(null);
@@ -209,6 +251,10 @@ export function SyncProvider({ user, children }: { user: User | null; children: 
     if (json === lastAppliedRemoteJsonRef.current) return;
     // 이미 업로드한 것과 동일하면 생략
     if (json === lastPushedJsonRef.current) return;
+    // 마운트/로그인 직후의 초기 데이터 그대로면 '사용자 수정'이 아님
+    // → lastLocalEditAt을 기록하지 않는다 (핵심 버그 수정: 이 오기록이
+    //   hydrate의 충돌 판정을 오염시켜 빈 로컬이 클라우드를 덮어쓰게 했음)
+    if (json === baselineJsonRef.current) return;
 
     // 로컬 수정 시각 기록 (충돌 해결 기준)
     lastActivityRef.current = Date.now();
@@ -264,11 +310,12 @@ export function SyncProvider({ user, children }: { user: User | null; children: 
         try {
           if (!user || pendingRef.current || !hydratedRef.current) return;
           const remote = await fetchRemote(user.id);
-          if (remote && (!lastSyncedAt || remote.updatedAt > lastSyncedAt)) {
+          if (remote && (!lastSyncedAt || ts(remote.updatedAt) > ts(lastSyncedAt))) {
             const json = JSON.stringify(remote.data);
             if (json !== JSON.stringify(dataRef.current)) {
               lastAppliedRemoteJsonRef.current = json;
               lastPushedJsonRef.current = json;
+              baselineJsonRef.current = json;
               replaceAll(remote.data);
             }
             markSynced(remote.updatedAt);
