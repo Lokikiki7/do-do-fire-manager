@@ -12,6 +12,7 @@ import {
   realReturnRate,
   toPresentValue,
   buildAssetSeries,
+  monthlyInvestmentRate,
 } from '@/utils/finance';
 import type { SimulatorInput, DailyRecord } from '@/types';
 
@@ -240,5 +241,88 @@ describe('buildAssetSeries — 수입/지출 기록 기반 자산 추이', () =>
     );
     expect(s.map((p) => p.date)).toEqual(['2026-01-01', '2026-01-02', '2026-01-03']);
     expect(s.map((p) => p.totalAssets)).toEqual([10, 30, 60]);
+  });
+});
+
+
+describe('누적 투자 원금 / 수익 추적', () => {
+  const rec = (date: string, p: Partial<DailyRecord> = {}): DailyRecord => ({
+    id: date,
+    date,
+    income: 0,
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: 0,
+    investment: 0,
+    saving: 0,
+    ...p,
+  });
+
+  it('투자 원금은 날마다 누적된다 (100 + 100 = 200)', () => {
+    const s = buildAssetSeries(
+      [rec('2026-01-01', { investment: 100 }), rec('2026-01-02', { investment: 100 })],
+      0,
+      0,
+    );
+    expect(s[0].investedPrincipal).toBe(100);
+    expect(s[1].investedPrincipal).toBe(200);
+  });
+
+  it('투자 원금만으로는 순자산이 늘지 않는다 (현금→투자자산 이동)', () => {
+    const s = buildAssetSeries([rec('2026-01-01', { investment: 100 })], 1000, 0);
+    expect(s[0].investedPrincipal).toBe(100);
+    expect(s[0].netWorth).toBe(1000); // 그대로
+  });
+
+  it('투자 수익이 누적되어 순자산을 늘린다', () => {
+    const s = buildAssetSeries(
+      [
+        rec('2026-01-01', { investment: 100, investmentReturnRate: 10 }),
+        rec('2026-01-02', { investment: 100, investmentReturnRate: 10 }),
+      ],
+      0,
+      0,
+    );
+    expect(s[1].investedPrincipal).toBe(200);
+    expect(s[1].investmentGain).toBe(20); // 10 + 10
+    expect(s[1].netWorth).toBe(20);
+  });
+
+  it('음수 투자금은 원금 누적에서 제외한다', () => {
+    const s = buildAssetSeries([rec('2026-01-01', { investment: -50 })], 0, 0);
+    expect(s[0].investedPrincipal).toBe(0);
+  });
+});
+
+describe('monthlyInvestmentRate — 월 투자액 환산', () => {
+  const rec = (date: string, investment: number): DailyRecord => ({
+    id: date,
+    date,
+    income: 0,
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: 0,
+    investment,
+    saving: 0,
+  });
+
+  it('기록이 없으면 0', () => {
+    expect(monthlyInvestmentRate([])).toBe(0);
+  });
+
+  it('오래된 기록만 있으면 0 (최근 90일 밖)', () => {
+    expect(monthlyInvestmentRate([rec('2020-01-01', 1000)])).toBe(0);
+  });
+
+  it('최근 기록을 월 단위로 환산한다', () => {
+    const today = new Date();
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const d1 = new Date(today);
+    d1.setDate(d1.getDate() - 9); // 10일 전
+    const d2 = new Date(today);
+
+    // 10일에 걸쳐 총 100 투자 → 하루 10 → 월 300
+    const result = monthlyInvestmentRate([rec(iso(d1), 50), rec(iso(d2), 50)]);
+    expect(result).toBeCloseTo(300, 0);
   });
 });

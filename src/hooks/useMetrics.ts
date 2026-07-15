@@ -12,6 +12,7 @@ import {
   fireProgress,
   estimateFireDate,
   buildAssetSeries,
+  monthlyInvestmentRate,
 } from '@/utils/finance';
 
 export function useMetrics() {
@@ -35,8 +36,18 @@ export function useMetrics() {
     const prevNet = netWorth - dayChange;
     const dayChangePct = prevNet !== 0 ? (dayChange / Math.abs(prevNet)) * 100 : 0;
 
-    const lastRecord = records.length ? [...records].sort((a, b) => a.date.localeCompare(b.date)).pop() : undefined;
-    const monthlyInvestment = lastRecord?.investment ?? 0;
+    // 누적 투자 원금 / 누적 투자 수익
+    const totalInvested = latest?.investedPrincipal ?? 0;
+    const totalGain = latest?.investmentGain ?? 0;
+
+    // 이번 달에 투자한 금액 (월별 진행 상황 확인용)
+    const thisMonth = new Date().toISOString().slice(0, 7);
+    const investedThisMonth = records
+      .filter((r) => r.date.startsWith(thisMonth))
+      .reduce((s, r) => s + Math.max(0, r.investment), 0);
+
+    // FIRE 예상일용 월 투자액 — 최근 90일 실적을 월 환산 (마지막 기록 1건이 아님)
+    const monthlyInvestment = monthlyInvestmentRate(records);
 
     const ruleTarget = fireNumberByRule(settings.annualExpense, settings.withdrawalRate);
     const target = settings.fireTarget || ruleTarget;
@@ -56,6 +67,9 @@ export function useMetrics() {
       liabilities,
       debtPaid,
       netWorth,
+      totalInvested,
+      totalGain,
+      investedThisMonth,
       dayChange,
       dayChangePct,
       monthlyInvestment,

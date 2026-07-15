@@ -19,9 +19,12 @@ export function DashboardPage() {
   const { currency, name } = data.settings;
 
   // 자산 그래프 데이터 — 수입/지출 기록에서 파생 (지표 카드와 동일한 계산)
+  // 투자 기록이 있으면 "누적 투자 원금" 라인을 함께 그려 원금/수익을 구분해 보여준다
+  const hasInvestment = m.totalInvested > 0;
   const chartData = m.series.map((p) => ({
     x: p.date.slice(5), // MM-DD
     total: p.netWorth,
+    ...(hasInvestment ? { principal: p.investedPrincipal } : {}),
   }));
 
   const upcomingMilestones = data.milestones.filter((x) => !x.done).slice(0, 3);
@@ -48,8 +51,10 @@ export function DashboardPage() {
           delay={0.05}
         />
         <StatCard
-          label="월 투자금"
-          value={formatMoney(m.monthlyInvestment, currency)}
+          label="총 투자 원금"
+          value={formatMoney(m.totalInvested, currency)}
+          delta={m.investedThisMonth > 0 ? `이번 달 +${formatShort(m.investedThisMonth, currency)}` : undefined}
+          deltaType="up"
           icon={<TrendingUp size={16} />}
           accent="blue"
           delay={0.1}
@@ -93,10 +98,20 @@ export function DashboardPage() {
           {chartData.length > 0 ? (
             <>
               <AssetAreaChart data={chartData} currency={currency} />
-              <p className="text-xs text-ink-faint mt-3">
+              <p className="text-xs text-ink-faint mt-3 leading-relaxed">
                 수입/지출 기록 {m.series.length}건에서 자동 계산됩니다 · 초기 자산{' '}
                 {formatShort(data.settings.initialAsset, currency)} 기준
                 {m.debtPaid > 0 && ` · 부채 ${formatShort(m.debtPaid, currency)} 상환 반영`}
+                {m.totalInvested > 0 && (
+                  <>
+                    <br />
+                    누적 투자 원금 {formatShort(m.totalInvested, currency)} · 누적 수익{' '}
+                    <span className={m.totalGain >= 0 ? 'text-positive' : 'text-negative'}>
+                      {m.totalGain >= 0 ? '+' : ''}
+                      {formatShort(m.totalGain, currency)}
+                    </span>
+                  </>
+                )}
               </p>
             </>
           ) : (

@@ -39,7 +39,13 @@ export function StatsPage() {
       growth = base !== 0 ? ((last.netWorth - base) / Math.abs(base)) * 100 : 0;
     }
 
-    return { avgSaving, avgInvest, fixed, variable, invest, save, growth };
+    // 누적 투자 원금 / 수익 (대시보드와 같은 소스)
+    const totalInvested = last?.investedPrincipal ?? 0;
+    const totalGain = last?.investmentGain ?? 0;
+    // 투자 수익률 = 누적 수익 / 누적 원금
+    const gainRate = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
+
+    return { avgSaving, avgInvest, fixed, variable, invest, save, growth, totalInvested, totalGain, gainRate };
   }, [records, initialAsset, initialLiability]);
 
   if (!stats) {
@@ -84,8 +90,14 @@ export function StatsPage() {
           accent="gold"
         />
         <StatCard
-          label="누적 투자금"
-          value={formatShort(stats.invest, currency)}
+          label="누적 투자 원금"
+          value={formatShort(stats.totalInvested, currency)}
+          delta={
+            stats.totalGain !== 0
+              ? `수익 ${stats.totalGain >= 0 ? '+' : ''}${formatShort(stats.totalGain, currency)} (${formatPercent(stats.gainRate)})`
+              : undefined
+          }
+          deltaType={stats.totalGain >= 0 ? 'up' : 'down'}
           icon={<TrendingUp size={16} />}
           accent="blue"
         />

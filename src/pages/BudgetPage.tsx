@@ -7,7 +7,7 @@
  * 버그 수정: 복제 버튼이 값을 복사하지 않던 문제 → 원본 값을 프리필
  */
 import { useState } from 'react';
-import { Trash2, Wallet, Pencil, Copy, Plus, ChevronDown } from 'lucide-react';
+import { Trash2, Wallet, Pencil, Copy, Plus, ChevronDown, Info } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { Card, SectionTitle, Button, Field, Input, EmptyState, cn, Modal } from '@/components/ui';
@@ -222,6 +222,16 @@ export function BudgetPage() {
                 </Field>
               </div>
             </div>
+
+            {existing && (
+              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-gold/10 text-gold text-xs leading-relaxed">
+                <Info size={14} className="shrink-0 mt-0.5" />
+                <span>
+                  이 날짜에 이미 기록이 있어요. 저장하면 <b>기존 값을 덮어씁니다</b>. 더하려면 아래
+                  금액을 직접 합산해 입력하세요.
+                </span>
+              </div>
+            )}
 
             <div className="text-xs text-ink-faint">
               총지출 <span className="font-semibold text-ink">{formatMoney(totalExpense, currency)}</span>

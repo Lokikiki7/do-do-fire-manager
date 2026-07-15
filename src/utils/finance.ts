@@ -176,6 +176,10 @@ export interface AssetPoint {
   netWorth: number;
   /** 그날의 순자산 증감 */
   change: number;
+  /** 그 시점까지 누적 투자 원금 (내가 넣은 돈의 합계) */
+  investedPrincipal: number;
+  /** 그 시점까지 누적 투자 수익 (원금 × 수익률의 합계) */
+  investmentGain: number;
 }
 
 /**
@@ -203,11 +207,18 @@ export function buildAssetSeries(
   let assets = initialAsset;
   let liabilities = Math.max(0, initialLiability);
   let prevNet = assets - liabilities;
+  let investedPrincipal = 0;
+  let investmentGain = 0;
 
   return sorted.map((r) => {
     // 실제로 부채를 줄이는 금액 (남은 부채 한도 내)
     const debtPaid = Math.min(Math.max(0, r.debt), liabilities);
     const gain = r.investment * ((r.investmentReturnRate || 0) / 100);
+
+    // 투자 원금은 "현금 → 투자자산" 이동이라 순자산을 늘리지 않지만,
+    // 얼마를 넣었는지는 따로 누적해서 보여준다 (수익과 원금을 구분하기 위함)
+    investedPrincipal += Math.max(0, r.investment);
+    investmentGain += gain;
 
     assets += r.income - r.fixedExpense - r.variableExpense - r.debt + gain;
     liabilities -= debtPaid;
@@ -216,6 +227,41 @@ export function buildAssetSeries(
     const change = netWorth - prevNet;
     prevNet = netWorth;
 
-    return { date: r.date, totalAssets: assets, liabilities, netWorth, change };
+    return {
+      date: r.date,
+      totalAssets: assets,
+      liabilities,
+      netWorth,
+      change,
+      investedPrincipal,
+      investmentGain,
+    };
   });
+}
+
+/**
+ * 최근 N일간의 실제 투자액 합계 → 월 환산.
+ * FIRE 예상일 계산에 쓰인다.
+ * (예전에는 "가장 최근 기록 1건의 투자금"을 월 투자금으로 착각해서
+ *  하루 10만원을 기록하면 월 10만원 투자로 계산되는 버그가 있었다)
+ */
+export function monthlyInvestmentRate(records: DailyRecord[], days = 90): number {
+  if (records.length === 0) return 0;
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - (days - 1));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const cutoffStr = `${cutoff.getFullYear()}-${pad(cutoff.getMonth() + 1)}-${pad(cutoff.getDate())}`;
+
+  const recent = records.filter((r) => r.date >= cutoffStr);
+  if (recent.length === 0) return 0;
+
+  // 실제 기록이 걸쳐 있는 기간으로 나눠 월 평균을 낸다
+  const dates = recent.map((r) => r.date).sort();
+  const first = new Date(dates[0]);
+  const last = new Date(dates[dates.length - 1]);
+  const spanDays = Math.max(1, Math.round((last.getTime() - first.getTime()) / 86_400_000) + 1);
+
+  const total = recent.reduce((s, r) => s + Math.max(0, r.investment) + Math.max(0, r.saving), 0);
+  return (total / spanDays) * 30;
 }
