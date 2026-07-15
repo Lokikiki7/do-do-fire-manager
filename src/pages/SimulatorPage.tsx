@@ -187,7 +187,7 @@ export function SimulatorPage() {
         </Card>
 
         <div className="lg:col-span-2 space-y-4">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 min-[420px]:grid-cols-3 gap-3">
             <StatCard
               label="최종 자산"
               value={formatShort(last?.total ?? 0, currency)}

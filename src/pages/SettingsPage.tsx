@@ -17,6 +17,8 @@ import {
 import { exportBackup, importBackup } from '@/utils/storage';
 import { parseAmount } from '@/utils/validate';
 import { DEFAULT_DATA } from '@/constants';
+import { CloudSyncCard } from '@/components/settings/CloudSyncCard';
+import type { User } from '@supabase/supabase-js';
 import type { ThemeMode, Currency } from '@/types';
 
 const THEME_OPTS: { value: ThemeMode; label: string }[] = [
@@ -25,7 +27,7 @@ const THEME_OPTS: { value: ThemeMode; label: string }[] = [
   { value: 'system', label: '시스템' },
 ];
 
-export function SettingsPage() {
+export function SettingsPage({ user }: { user: User | null }) {
   const { data, updateSettings, replaceAll } = useAppData();
   const confirm = useConfirm();
   const { settings } = data;
@@ -62,6 +64,9 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4 max-w-2xl">
+      {/* 클라우드 동기화 */}
+      <CloudSyncCard user={user} />
+
       {/* 프로필 */}
       <Card>
         <SectionTitle>프로필</SectionTitle>
@@ -165,7 +170,7 @@ export function SettingsPage() {
       <Card>
         <SectionTitle>데이터 관리</SectionTitle>
         <p className="text-sm text-ink-soft mb-4">
-          모든 데이터는 이 브라우저에만 저장됩니다. 기기 이전이나 백업을 위해 JSON으로 내보내세요.
+          데이터는 이 기기에 저장되고, 로그인 시 클라우드에도 자동 동기화됩니다. 추가 안전장치로 JSON 백업을 내보낼 수 있어요.
         </p>
         <div className="flex flex-wrap gap-2">
           <Button variant="ghost" onClick={() => exportBackup(data)}>

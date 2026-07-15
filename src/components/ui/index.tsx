@@ -248,7 +248,7 @@ export function Modal({ open, onOpenChange, title, children }: ModalProps) {
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: "100%", opacity: 0 }}
         transition={{ type: "spring", damping: 30, stiffness: 300 }}
-        className="relative w-full sm:w-auto sm:max-w-md bg-surface rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90vh] overflow-y-auto"
+        className="relative w-full sm:w-auto sm:min-w-[26rem] sm:max-w-md bg-surface rounded-t-2xl sm:rounded-2xl shadow-lg max-h-[90dvh] overflow-y-auto pb-[env(safe-area-inset-bottom)]"
       >
         {/* 헤더 */}
         <div className="sticky top-0 flex items-center justify-between p-4 border-b border-line/10 bg-surface/95 backdrop-blur">

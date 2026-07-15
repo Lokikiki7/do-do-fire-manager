@@ -15,6 +15,7 @@ export default {
         canvas: 'rgb(var(--canvas) / <alpha-value>)',      // 페이지 배경
         surface: 'rgb(var(--surface) / <alpha-value>)',    // 카드 배경
         elevated: 'rgb(var(--elevated) / <alpha-value>)',  // 팝오버/모달
+        'surface-secondary': 'rgb(var(--surface-secondary) / <alpha-value>)', // 카드 내부 강조 영역
         line: 'rgb(var(--line) / <alpha-value>)',          // 구분선
         ink: 'rgb(var(--ink) / <alpha-value>)',            // 본문 텍스트
         'ink-soft': 'rgb(var(--ink-soft) / <alpha-value>)',// 보조 텍스트

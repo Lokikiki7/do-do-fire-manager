@@ -87,6 +87,11 @@ function normalizeSimulator(v: unknown): SimulatorInput {
     salaryGrowthRate: num(v.salaryGrowthRate, d.salaryGrowthRate),
     investmentGrowthRate: num(v.investmentGrowthRate, d.investmentGrowthRate),
     years: num(v.years, d.years),
+    // 클라우드 왕복 시 손실되지 않도록 구간별 수익률 설정도 보존
+    useVariableReturnRate: typeof v.useVariableReturnRate === 'boolean' ? v.useVariableReturnRate : undefined,
+    returnRateTiers: Array.isArray(v.returnRateTiers)
+      ? (v.returnRateTiers as SimulatorInput['returnRateTiers'])
+      : undefined,
   };
 }
 

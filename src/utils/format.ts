@@ -44,14 +44,16 @@ export function formatDateKo(date: Date): string {
   return `${date.getFullYear()}년 ${date.getMonth() + 1}월`;
 }
 
-/** 오늘 날짜 YYYY-MM-DD */
+/** 오늘 날짜 YYYY-MM-DD (로컬 시간대 기준 — UTC 사용 시 KST 오전 9시 전에 어제로 표시되던 버그 수정) */
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-/** 이번 달 YYYY-MM */
+/** 이번 달 YYYY-MM (로컬 시간대 기준) */
 export function currentMonth(): string {
-  return new Date().toISOString().slice(0, 7);
+  return todayISO().slice(0, 7);
 }
 
 /** 간단한 고유 ID */

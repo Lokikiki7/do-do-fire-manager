@@ -6,6 +6,7 @@ import { lazy, Suspense } from 'react';
 import { motion } from 'framer-motion';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import type { PageKey } from '@/types';
+import type { User } from '@supabase/supabase-js';
 
 // 대시보드는 첫 화면이라 직접 import (LCP 최적화), 나머지는 lazy
 import { DashboardPage } from '@/pages/DashboardPage';
@@ -48,7 +49,7 @@ function PageFallback() {
   );
 }
 
-export function PageRouter({ page }: { page: PageKey }) {
+export function PageRouter({ page, user }: { page: PageKey; user: User | null }) {
   const render = () => {
     switch (page) {
       case 'dashboard':
@@ -66,7 +67,7 @@ export function PageRouter({ page }: { page: PageKey }) {
       case 'stats':
         return <StatsPage />;
       case 'settings':
-        return <SettingsPage />;
+        return <SettingsPage user={user} />;
     }
   };
 

@@ -10,6 +10,7 @@
 :root {
   --canvas: 245 245 247;     /* #F5F5F7 */
   --surface: 255 255 255;
+  --surface-secondary: 242 242 247; /* iOS systemGray6 */
   --elevated: 255 255 255;
   --line: 0 0 0;             /* alpha로 조절해 사용: line/10 */
   --ink: 29 29 31;           /* #1D1D1F */
@@ -24,6 +25,7 @@
 .dark {
   --canvas: 0 0 0;
   --surface: 28 28 30;       /* #1C1C1E */
+  --surface-secondary: 44 44 46; /* #2C2C2E */
   --elevated: 44 44 46;      /* #2C2C2E */
   --line: 255 255 255;
   --ink: 245 245 247;
