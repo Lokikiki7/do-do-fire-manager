@@ -13,7 +13,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { Card, SectionTitle, Button, Field, Input, EmptyState, cn, Modal } from '@/components/ui';
 import { BudgetCalendar } from '@/components/budget/BudgetCalendar';
 import { BudgetBarChart } from '@/components/charts';
-import { savingRate } from '@/utils/finance';
+import { savingRate, buildAssetSeries } from '@/utils/finance';
 import { parseAmount } from '@/utils/validate';
 import { formatMoney, formatPercent, todayISO, uid } from '@/utils/format';
 import type { DailyRecord } from '@/types';
@@ -130,6 +130,14 @@ export function BudgetPage() {
 
   const sortedDesc = [...records].reverse();
   const visibleRecords = sortedDesc.slice(0, visibleCount);
+
+  // 날짜별 누계 순자산 — 대시보드/지표 카드와 동일한 buildAssetSeries 사용 (단일 진실 공급원)
+  // 기록은 날짜당 1건(upsert)이므로 date를 키로 써도 안전하다
+  const cumulativeByDate = new Map(
+    buildAssetSeries(records, data.settings.initialAsset, data.settings.initialLiability).map(
+      (p) => [p.date, p.netWorth] as const,
+    ),
+  );
 
   const actionButtons = (r: DailyRecord, alwaysVisible: boolean) => (
     <div
@@ -296,6 +304,12 @@ export function BudgetPage() {
                         </span>
                       </div>
                     </div>
+                    <div className="flex justify-between items-center mt-2 pt-2 border-t border-line/[0.08] text-sm tabular">
+                      <span className="text-ink-faint text-xs">누계 순자산</span>
+                      <span className={cn('font-semibold', (cumulativeByDate.get(r.date) ?? 0) >= 0 ? 'text-ink' : 'text-negative')}>
+                        {formatMoney(cumulativeByDate.get(r.date) ?? 0, currency)}
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -303,7 +317,7 @@ export function BudgetPage() {
 
             {/* 데스크톱: 테이블 */}
             <div className="hidden sm:block overflow-x-auto -mx-2">
-              <table className="w-full text-sm min-w-[620px]">
+              <table className="w-full text-sm min-w-[720px]">
                 <thead>
                   <tr className="text-ink-faint text-left border-b border-line/10">
                     <th className="font-medium py-2 px-2">날짜</th>
@@ -312,6 +326,7 @@ export function BudgetPage() {
                     <th className="font-medium py-2 px-2 text-right">투자+저축</th>
                     <th className="font-medium py-2 px-2 text-right">수익률</th>
                     <th className="font-medium py-2 px-2 text-right">저축률</th>
+                    <th className="font-medium py-2 px-2 text-right">누계</th>
                     <th className="py-2 px-2" />
                   </tr>
                 </thead>
@@ -333,6 +348,9 @@ export function BudgetPage() {
                           <span className={cn(rate >= 30 ? 'text-positive' : rate >= 15 ? 'text-gold' : 'text-ink-soft')}>
                             {formatPercent(rate)}
                           </span>
+                        </td>
+                        <td className={cn('py-2.5 px-2 text-right tabular font-semibold', (cumulativeByDate.get(r.date) ?? 0) >= 0 ? 'text-ink' : 'text-negative')}>
+                          {formatMoney(cumulativeByDate.get(r.date) ?? 0, currency)}
                         </td>
                         <td className="py-2.5 px-2">{actionButtons(r, false)}</td>
                       </tr>
