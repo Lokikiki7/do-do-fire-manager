@@ -3,7 +3,7 @@
  * UI와 완전히 분리되어 있어 단위 테스트가 쉽고,
  * 계산기/시뮬레이터/대시보드가 같은 로직을 공유한다.
  */
-import type { SimulatorInput, SimulationPoint, ReturnRateTier, DailyRecord } from '@/types';
+import type { SimulatorInput, SimulationPoint, ReturnRateTier, DailyRecord, SimulatorTier } from '@/types';
 import { normalizeDate } from '@/utils/format';
 
 /**
@@ -123,6 +123,119 @@ export function simulate(input: SimulatorInput): SimulationPoint[] {
   }
 
   return points;
+}
+
+/** 자산 금액으로 어느 구간인지 찾는다. 어디에도 안 들어가면 -1 */
+export function findTierIndex(asset: number, tiers: SimulatorTier[]): number {
+  return tiers.findIndex(
+    (t) => asset >= t.minAsset && (t.maxAsset === undefined || asset < t.maxAsset),
+  );
+}
+
+/** 구간별 시뮬레이션의 한 달 */
+export interface TierSimPoint {
+  monthIndex: number;
+  year: number;
+  /** 그 달 말의 자산 */
+  asset: number;
+  /** 그 시점까지 넣은 투자액 합계 */
+  invested: number;
+  /** 그 시점까지 쌓인 수익 합계 */
+  gain: number;
+  /** 그 달에 적용된 구간 (없으면 -1) */
+  tierIndex: number;
+}
+
+export interface TierSimResult {
+  points: TierSimPoint[];
+  /** FIRE 달성(마지막 구간 진입) 시점. 미달성이면 null */
+  fireDate: { year: number; monthIndex: number } | null;
+  /** FIRE 기준 금액 = 마지막 구간의 minAsset */
+  fireTarget: number;
+  finalAsset: number;
+  totalInvested: number;
+  totalGain: number;
+  /** 각 구간에 처음 도달한 시점 (도달 못 한 구간은 없음) */
+  tierArrivals: { tierIndex: number; year: number; monthIndex: number }[];
+}
+
+/**
+ * 자산 구간별 시뮬레이션.
+ *
+ * 매달 다음을 반복한다:
+ *   1. 지금 자산이 어느 구간인지 찾는다
+ *   2. 그 구간의 월급 / 지출 / 투자액 / 수익률을 적용한다
+ *   3. 자산 = 자산 + 월급 − 지출 + (월 투자액 × 수익률)
+ *
+ * 3번 식은 요청받은 정의를 그대로 옮긴 것이다. 수익률이 누적 자산이 아니라
+ * "그 달 투자액"에 붙으므로, 투자액은 자산에서 빠지지 않고 수익을 만드는
+ * 역할만 한다 (총 투자액은 따로 누적해 보여준다).
+ *
+ * 마지막 구간(maxAsset 없음)에 들어가면 FIRE 달성으로 보고 멈춘다.
+ */
+export function simulateTiers(
+  tiers: SimulatorTier[],
+  initialAsset: number,
+  maxYears = 60,
+): TierSimResult {
+  const startYear = new Date().getFullYear();
+  const points: TierSimPoint[] = [];
+  const tierArrivals: { tierIndex: number; year: number; monthIndex: number }[] = [];
+  const seenTiers = new Set<number>();
+
+  // FIRE 기준 = 마지막 구간의 시작 금액 (구간이 없으면 도달 불가)
+  const fireTarget = tiers.length > 0 ? tiers[tiers.length - 1].minAsset : Infinity;
+  const lastIndex = tiers.length - 1;
+
+  let asset = initialAsset;
+  let invested = 0;
+  let gain = 0;
+  let fireDate: TierSimResult['fireDate'] = null;
+
+  const totalMonths = Math.max(1, Math.min(maxYears, 60)) * 12;
+
+  for (let mo = 0; mo < totalMonths; mo++) {
+    const tierIndex = findTierIndex(asset, tiers);
+    const year = startYear + Math.floor(mo / 12);
+
+    if (tierIndex >= 0 && !seenTiers.has(tierIndex)) {
+      seenTiers.add(tierIndex);
+      tierArrivals.push({ tierIndex, year, monthIndex: mo });
+    }
+
+    // 마지막 구간에 들어섰다 = FIRE 달성. 그 시점을 기록하고 멈춘다.
+    // tierIndex >= 0 검사가 없으면 구간이 비었을 때 -1 === -1 이 되어 오달성 처리된다.
+    if (tierIndex >= 0 && tierIndex === lastIndex && tiers[lastIndex].maxAsset === undefined) {
+      if (!fireDate) fireDate = { year, monthIndex: mo };
+      points.push({ monthIndex: mo, year, asset, invested, gain, tierIndex });
+      break;
+    }
+
+    const t = tierIndex >= 0 ? tiers[tierIndex] : undefined;
+    if (t) {
+      const monthGain = t.investment * (t.monthlyReturnRate / 100);
+      asset += t.salary - t.expense + monthGain;
+      invested += t.investment;
+      gain += monthGain;
+    }
+
+    points.push({ monthIndex: mo, year, asset, invested, gain, tierIndex });
+
+    // 구간이 하나도 안 맞거나 자산이 전혀 늘지 않으면 더 돌려도 의미가 없다
+    if (!t || (t.salary - t.expense + t.investment * (t.monthlyReturnRate / 100)) <= 0) {
+      if (!t) break;
+    }
+  }
+
+  return {
+    points,
+    fireDate,
+    fireTarget,
+    finalAsset: asset,
+    totalInvested: invested,
+    totalGain: gain,
+    tierArrivals,
+  };
 }
 
 /**

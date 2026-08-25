@@ -20,6 +20,7 @@ import type {
   DailyRecord,
   Milestone,
   Goal,
+  SimulatorTier,
 } from '@/types';
 import { loadData, saveData, autoBackup } from '@/utils/storage';
 
@@ -27,6 +28,7 @@ interface AppDataContextValue {
   data: AppData;
   replaceAll: (next: AppData) => void;
   updateSettings: (patch: Partial<Settings>) => void;
+  updateSimulatorTiers: (tiers: SimulatorTier[]) => void;
   addSnapshot: (s: AssetSnapshot) => void;
   removeSnapshot: (id: string) => void;
   upsertRecord: (r: DailyRecord) => void;
@@ -58,6 +60,14 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
+  }, []);
+
+  /** 구간은 항상 시작 자산 순으로 정렬해 둔다 — 구간 판정이 순서에 의존한다 */
+  const updateSimulatorTiers = useCallback((tiers: SimulatorTier[]) => {
+    setData((d) => ({
+      ...d,
+      simulatorTiers: [...tiers].sort((a, b) => a.minAsset - b.minAsset),
+    }));
   }, []);
 
   const addSnapshot = useCallback((s: AssetSnapshot) => {
@@ -112,6 +122,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     data,
     replaceAll,
     updateSettings,
+    updateSimulatorTiers,
     addSnapshot,
     removeSnapshot,
     upsertRecord,

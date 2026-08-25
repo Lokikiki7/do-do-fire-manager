@@ -17,8 +17,10 @@ import {
   netSavingOf,
   totalExpenseOf,
   expenseRatio,
+  findTierIndex,
+  simulateTiers,
 } from '@/utils/finance';
-import type { SimulatorInput, DailyRecord } from '@/types';
+import type { SimulatorInput, DailyRecord, SimulatorTier } from '@/types';
 
 describe('realReturnRate (피셔 방정식)', () => {
   it('인플레 0이면 실질 = 명목', () => {
@@ -918,5 +920,111 @@ describe('expenseRatio — 누적 지출율', () => {
 
   it('지출이 수입을 넘으면 100%를 넘는다', () => {
     expect(expenseRatio([rec('2026-08-01', { income: 1000, expense: 1500 })])).toBe(150);
+  });
+});
+
+describe('findTierIndex — 자산이 속한 구간 찾기', () => {
+  const tiers: SimulatorTier[] = [
+    { id: 'a', minAsset: 0, maxAsset: 100, salary: 0, investment: 0, expense: 0, monthlyReturnRate: 0 },
+    { id: 'b', minAsset: 100, maxAsset: 500, salary: 0, investment: 0, expense: 0, monthlyReturnRate: 0 },
+    { id: 'c', minAsset: 500, salary: 0, investment: 0, expense: 0, monthlyReturnRate: 0 },
+  ];
+
+  it('구간 경계는 시작값 포함, 끝값 미포함', () => {
+    expect(findTierIndex(0, tiers)).toBe(0);
+    expect(findTierIndex(99, tiers)).toBe(0);
+    expect(findTierIndex(100, tiers)).toBe(1); // 끝값은 다음 구간
+    expect(findTierIndex(499, tiers)).toBe(1);
+    expect(findTierIndex(500, tiers)).toBe(2);
+  });
+
+  it('maxAsset이 없는 마지막 구간은 위로 열려 있다', () => {
+    expect(findTierIndex(1_000_000, tiers)).toBe(2);
+  });
+
+  it('어느 구간에도 안 들어가면 -1', () => {
+    expect(findTierIndex(-1, tiers)).toBe(-1);
+    expect(findTierIndex(50, [])).toBe(-1);
+  });
+});
+
+describe('simulateTiers — 구간별 시뮬레이션', () => {
+  /** 요청서의 기본 4구간 */
+  const tiers: SimulatorTier[] = [
+    { id: 't1', minAsset: 0, maxAsset: 100_000_000, salary: 3_000_000, investment: 1_000_000, expense: 500_000, monthlyReturnRate: 5 },
+    { id: 't2', minAsset: 100_000_000, maxAsset: 500_000_000, salary: 4_000_000, investment: 1_500_000, expense: 700_000, monthlyReturnRate: 7 },
+    { id: 't3', minAsset: 500_000_000, maxAsset: 1_000_000_000, salary: 4_500_000, investment: 2_000_000, expense: 800_000, monthlyReturnRate: 8 },
+    { id: 't4', minAsset: 1_000_000_000, salary: 0, investment: 0, expense: 2_000_000, monthlyReturnRate: 0 },
+  ];
+
+  it('한 달에 자산 = 자산 + 월급 − 지출 + 투자액 × 수익률', () => {
+    const r = simulateTiers(tiers, 0, 1);
+    // 3,000,000 − 500,000 + 1,000,000 × 5% = 2,550,000
+    expect(r.points[0].asset).toBe(2_550_000);
+    expect(r.points[0].invested).toBe(1_000_000);
+    expect(r.points[0].gain).toBe(50_000);
+  });
+
+  it('자산이 커지면 다음 구간의 값이 적용된다', () => {
+    const r = simulateTiers(tiers, 99_000_000, 1);
+    // 첫 달은 구간 1 (99,000,000 < 1억) → 2,550,000 증가 → 1억 넘음
+    expect(r.points[0].tierIndex).toBe(0);
+    // 두 번째 달은 구간 2 → 4,000,000 − 700,000 + 1,500,000 × 7% = 3,405,000
+    expect(r.points[1].tierIndex).toBe(1);
+    expect(r.points[1].asset - r.points[0].asset).toBe(3_405_000);
+  });
+
+  it('마지막 구간에 들어가면 FIRE 달성으로 보고 멈춘다', () => {
+    const r = simulateTiers(tiers, 999_000_000, 60);
+    expect(r.fireDate).not.toBeNull();
+    expect(r.fireTarget).toBe(1_000_000_000);
+    // 달성 시점 이후로는 더 돌리지 않는다
+    const lastPoint = r.points[r.points.length - 1];
+    expect(lastPoint.tierIndex).toBe(3);
+  });
+
+  it('이미 FIRE 구간이면 즉시 달성', () => {
+    const r = simulateTiers(tiers, 1_500_000_000, 60);
+    expect(r.fireDate?.monthIndex).toBe(0);
+    expect(r.points).toHaveLength(1);
+  });
+
+  it('기본 구간으로 0원에서 시작하면 60년 안에 FIRE에 도달한다', () => {
+    const r = simulateTiers(tiers, 0, 60);
+    expect(r.fireDate).not.toBeNull();
+    expect(r.finalAsset).toBeGreaterThanOrEqual(1_000_000_000);
+  });
+
+  it('각 구간의 도달 시점을 순서대로 기록한다', () => {
+    const r = simulateTiers(tiers, 0, 60);
+    expect(r.tierArrivals.map((a) => a.tierIndex)).toEqual([0, 1, 2, 3]);
+    // 뒤 구간일수록 늦게 도달한다
+    const months = r.tierArrivals.map((a) => a.monthIndex);
+    expect(months).toEqual([...months].sort((a, b) => a - b));
+  });
+
+  it('총 투자액과 총 수익이 누적된다', () => {
+    const r = simulateTiers(tiers, 0, 60);
+    expect(r.totalInvested).toBeGreaterThan(0);
+    expect(r.totalGain).toBeGreaterThan(0);
+    // 수익은 각 달 투자액 × 수익률의 합이라 원금보다 작다
+    expect(r.totalGain).toBeLessThan(r.totalInvested);
+  });
+
+  it('지출이 월급보다 크면 자산이 줄어든다', () => {
+    const losing: SimulatorTier[] = [
+      { id: 'x', minAsset: 0, maxAsset: 1_000_000_000, salary: 1_000_000, investment: 0, expense: 3_000_000, monthlyReturnRate: 0 },
+      { id: 'y', minAsset: 1_000_000_000, salary: 0, investment: 0, expense: 0, monthlyReturnRate: 0 },
+    ];
+    const r = simulateTiers(losing, 10_000_000, 5);
+    expect(r.points[0].asset).toBe(8_000_000); // 1,000만 + 100만 − 300만
+    expect(r.fireDate).toBeNull();
+  });
+
+  it('구간이 없으면 아무것도 계산하지 않는다', () => {
+    const r = simulateTiers([], 1000, 5);
+    expect(r.points).toHaveLength(1);
+    expect(r.fireDate).toBeNull();
+    expect(r.finalAsset).toBe(1000);
   });
 });

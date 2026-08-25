@@ -10,8 +10,8 @@ import type { User } from '@supabase/supabase-js';
 
 // 대시보드는 첫 화면이라 직접 import (LCP 최적화), 나머지는 lazy
 import { DashboardPage } from '@/pages/DashboardPage';
-const CalculatorPage = lazy(() =>
-  import('@/pages/CalculatorPage').then((m) => ({ default: m.CalculatorPage })),
+const SimulatorPage = lazy(() =>
+  import('@/pages/SimulatorPage').then((m) => ({ default: m.SimulatorPage })),
 );
 const RoadmapPage = lazy(() =>
   import('@/pages/RoadmapPage').then((m) => ({ default: m.RoadmapPage })),
@@ -29,7 +29,7 @@ const SettingsPage = lazy(() =>
 // eslint-disable-next-line react-refresh/only-export-components
 export const PAGE_META: Record<PageKey, { title: string; subtitle: string }> = {
   dashboard: { title: '대시보드', subtitle: '한눈에 보는 나의 경제적 자유 현황' },
-  calculator: { title: 'FIRE 계산기', subtitle: '목표와 저축액을 넣고 달성 시점을 시뮬레이션해요' },
+  simulator: { title: '시뮬레이터', subtitle: '자산 구간별로 벌이와 투자를 설정해 FIRE 시점을 예측해요' },
   roadmap: { title: '인생 로드맵', subtitle: '연도별 목표를 세우고 하나씩 달성해요' },
   goals: { title: '목표 관리', subtitle: '단기·중기·장기 목표를 나눠 관리해요' },
   budget: { title: '수입 / 지출', subtitle: '매달 현금 흐름을 기록하고 저축률을 확인해요' },
@@ -50,8 +50,8 @@ export function PageRouter({ page, user }: { page: PageKey; user: User | null })
     switch (page) {
       case 'dashboard':
         return <DashboardPage />;
-      case 'calculator':
-        return <CalculatorPage />;
+      case 'simulator':
+        return <SimulatorPage />;
       case 'roadmap':
         return <RoadmapPage />;
       case 'goals':

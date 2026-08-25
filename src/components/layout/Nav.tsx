@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
-  Calculator,
+  TrendingUp,
   Map,
   Target,
   Wallet,
@@ -21,7 +21,7 @@ import { cn } from '@/components/ui';
 // 라우트 키 → 아이콘 매핑 (constants와 분리해 아이콘 의존성을 UI 레이어에 격리)
 const ICONS: Record<PageKey, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
-  calculator: Calculator,
+  simulator: TrendingUp,
   roadmap: Map,
   goals: Target,
   budget: Wallet,
@@ -31,7 +31,7 @@ const ICONS: Record<PageKey, typeof LayoutDashboard> = {
 
 const LABELS: Record<PageKey, string> = {
   dashboard: '대시보드',
-  calculator: '계산기',
+  simulator: '시뮬레이터',
   roadmap: '로드맵',
   goals: '목표',
   budget: '수입/지출',
@@ -39,22 +39,20 @@ const LABELS: Record<PageKey, string> = {
   settings: '설정',
 };
 
-// 데스크톱 사이드바 순서 — 보는 화면(대시보드·통계)을 위로,
-// 적는 화면(수입/지출)과 도구(계산기)를 아래로 둔다
+// 데스크톱 사이드바 순서 — 매일 쓰는 수입/지출을 대시보드 바로 아래에 둔다
 const FULL_ORDER: PageKey[] = [
   'dashboard',
+  'budget',
   'stats',
   'goals',
   'roadmap',
-  'budget',
-  'calculator',
+  'simulator',
   'settings',
 ];
-// 모바일 하단 탭: 자주 쓰는 4개만 노출 (탭이 7개면 터치 타깃이 44px 미만으로 줄어듦).
-// 수입/지출은 매일 입력하는 화면이라 사이드바에서 내려가도 여기엔 남긴다.
-const MOBILE_PRIMARY: PageKey[] = ['dashboard', 'stats', 'budget', 'roadmap'];
+// 모바일 하단 탭: 자주 쓰는 4개만 노출 (탭이 7개면 터치 타깃이 44px 미만으로 줄어듦)
+const MOBILE_PRIMARY: PageKey[] = ['dashboard', 'budget', 'stats', 'simulator'];
 // 나머지는 "더보기" 시트에서 접근 — 이전에는 링크가 없어 모바일에서 진입 자체가 불가능했다
-const MOBILE_MORE: PageKey[] = ['goals', 'calculator', 'settings'];
+const MOBILE_MORE: PageKey[] = ['goals', 'roadmap', 'settings'];
 
 interface NavProps {
   current: PageKey;

@@ -44,6 +44,14 @@ export const DEFAULT_DATA: AppData = {
     investmentGrowthRate: 3,
     years: 20,
   },
+  // 자산이 커질수록 벌이도 투자도 늘어난다는 가정의 기본 구간.
+  // 마지막 구간은 월급 없이 지출만 있는 FIRE 이후 상태다.
+  simulatorTiers: [
+    { id: 'tier-1', minAsset: 0, maxAsset: 100_000_000, salary: 3_000_000, investment: 1_000_000, expense: 500_000, monthlyReturnRate: 5 },
+    { id: 'tier-2', minAsset: 100_000_000, maxAsset: 500_000_000, salary: 4_000_000, investment: 1_500_000, expense: 700_000, monthlyReturnRate: 7 },
+    { id: 'tier-3', minAsset: 500_000_000, maxAsset: 1_000_000_000, salary: 4_500_000, investment: 2_000_000, expense: 800_000, monthlyReturnRate: 8 },
+    { id: 'tier-4', minAsset: 1_000_000_000, salary: 0, investment: 0, expense: 2_000_000, monthlyReturnRate: 0 },
+  ],
 };
 
 /**
@@ -53,10 +61,10 @@ export const DEFAULT_DATA: AppData = {
  */
 export const NAV_ITEMS: { key: PageKey; label: string }[] = [
   { key: 'dashboard', label: '대시보드' },
+  { key: 'budget', label: '수입 / 지출' },
   { key: 'stats', label: '통계' },
   { key: 'goals', label: '목표 관리' },
   { key: 'roadmap', label: '인생 로드맵' },
-  { key: 'budget', label: '수입 / 지출' },
-  { key: 'calculator', label: 'FIRE 계산기' },
+  { key: 'simulator', label: '시뮬레이터' },
   { key: 'settings', label: '설정' },
 ];

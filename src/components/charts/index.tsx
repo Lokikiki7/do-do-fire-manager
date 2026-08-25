@@ -16,6 +16,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Cell,
+  ReferenceArea,
+  ReferenceLine,
   PieChart,
   Pie,
 } from 'recharts';
@@ -270,6 +272,88 @@ export function BudgetBarChart({
 }
 
 // ─────────────────────────────────────────────
+// 구간별 시뮬레이션 (연도별 자산 + 구간 밴드)
+// ─────────────────────────────────────────────
+/** 구간 색: 1 빨강 → 2 주황 → 3 노랑 → 4 초록 (그 이상은 반복) */
+const TIER_COLORS = [C.negative, C.gold, 'rgb(255,214,10)', C.positive, C.accent];
+
+export interface TierBand {
+  /** 구간 시작 금액 */
+  from: number;
+  /** 구간 끝 금액 (마지막 구간은 없음) */
+  to?: number;
+  label: string;
+}
+export interface TierArrivalMark {
+  year: number;
+  label: string;
+  colorIndex: number;
+}
+
+export function TierSimChart({
+  data,
+  bands,
+  arrivals,
+  currency,
+}: {
+  data: { x: string; 자산: number }[];
+  bands: TierBand[];
+  arrivals: TierArrivalMark[];
+  currency: Currency;
+}) {
+  const last = data[data.length - 1];
+  const ariaLabel = last
+    ? `연도별 자산 변화 그래프. ${data.length}년 뒤 ${formatMoney(last.자산, currency)}.`
+    : '연도별 자산 변화 그래프. 데이터 없음.';
+
+  // 밴드 상단이 열려 있으면(마지막 구간) 그래프 최고점까지 칠한다
+  const top = Math.max(...data.map((d) => d.자산), 0);
+
+  return (
+    <ChartFrame label={ariaLabel}>
+      <ResponsiveContainer width="100%" height={340}>
+        <LineChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke={C.grid} strokeOpacity={0.12} vertical={false} />
+          {/* 자산 구간을 가로 띠로 깔아 지금 어느 단계인지 보이게 한다 */}
+          {bands.map((b, i) => (
+            <ReferenceArea
+              key={`band-${i}`}
+              y1={b.from}
+              y2={b.to ?? Math.max(top, b.from)}
+              fill={TIER_COLORS[i % TIER_COLORS.length]}
+              fillOpacity={0.07}
+              stroke="none"
+            />
+          ))}
+          {/* 각 구간에 처음 도달하는 해를 세로선으로 표시 */}
+          {arrivals.map((a, i) => (
+            <ReferenceLine
+              key={`arrival-${i}`}
+              x={String(a.year)}
+              stroke={TIER_COLORS[a.colorIndex % TIER_COLORS.length]}
+              strokeDasharray="4 4"
+              strokeOpacity={0.7}
+              label={{ value: a.label, position: 'insideTopLeft', fontSize: 10, fill: C.grid }}
+            />
+          ))}
+          <XAxis dataKey="x" {...axisProps} minTickGap={20} />
+          <YAxis {...axisProps} width={48} tickFormatter={(v) => formatShort(v, currency)} />
+          <Tooltip content={<ChartTooltip currency={currency} />} />
+          <Line
+            type="monotone"
+            dataKey="자산"
+            stroke={C.accent}
+            strokeWidth={2.5}
+            dot={false}
+            activeDot={{ r: 4 }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+// ─────────────────────────────────────────────
 // 투자금 비중 도넛
 // ─────────────────────────────────────────────
 const PIE_COLORS = [C.accent, C.positive, C.gold, C.negative, 'rgb(175,82,222)'];
@@ -320,4 +404,4 @@ export function CompositionPie({
   );
 }
 
-export { PIE_COLORS };
+export { PIE_COLORS, TIER_COLORS };

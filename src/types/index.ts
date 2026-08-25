@@ -89,6 +89,25 @@ export interface SimulationPoint {
   profit: number;
 }
 
+/**
+ * 자산 구간별 시뮬레이터 설정.
+ * 자산이 어느 구간에 있느냐에 따라 월급·투자액·지출·수익률이 달라진다.
+ * maxAsset이 없으면 "그 금액 이상" 구간 (보통 마지막 FIRE 구간).
+ */
+export interface SimulatorTier {
+  id: string;
+  minAsset: number;
+  maxAsset?: number;
+  /** 월급 (FIRE 구간은 0) */
+  salary: number;
+  /** 월 투자액 */
+  investment: number;
+  /** 월 지출 */
+  expense: number;
+  /** 월 수익률(%) — 그 달 투자액에 적용된다 */
+  monthlyReturnRate: number;
+}
+
 export interface AppData {
   version: 1;
   settings: Settings;
@@ -97,16 +116,18 @@ export interface AppData {
   milestones: Milestone[];
   goals: Goal[];
   simulator: SimulatorInput;
+  /** 구간별 시뮬레이터 설정 (사용자가 편집) */
+  simulatorTiers: SimulatorTier[];
 }
 
-// 시뮬레이터는 계산기로 통합되어 페이지가 없어졌다.
-// AppData.simulator(설정값)는 남겨둔다 — 계산기 그래프가 simulate()를 그대로 쓰고,
-// 예전 저장 데이터·클라우드 동기화 왕복에서 값이 유실되지 않아야 한다.
+// 계산기는 제거되고 구간별 시뮬레이터로 대체됐다.
+// AppData.simulator(예전 설정값)는 남겨둔다 — 예전 저장 데이터나
+// 클라우드 동기화 왕복에서 값이 유실되면 안 된다.
 export type PageKey =
   | 'dashboard'
-  | 'calculator'
-  | 'roadmap'
-  | 'goals'
   | 'budget'
   | 'stats'
+  | 'goals'
+  | 'roadmap'
+  | 'simulator'
   | 'settings';

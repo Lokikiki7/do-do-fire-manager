@@ -1,4 +1,4 @@
-import type { AppData, Settings, AssetSnapshot, DailyRecord, Milestone, Goal, SimulatorInput, Currency, ThemeMode, GoalTerm } from '@/types';
+import type { AppData, Settings, AssetSnapshot, DailyRecord, Milestone, Goal, SimulatorInput, SimulatorTier, Currency, ThemeMode, GoalTerm } from '@/types';
 import { DEFAULT_DATA } from '@/constants';
 import { normalizeDate } from '@/utils/format';
 import { netSavingOf } from '@/utils/finance';
@@ -119,6 +119,20 @@ function normalizeSimulator(v: unknown): SimulatorInput {
   };
 }
 
+function normalizeTier(v: Record<string, unknown>): SimulatorTier | null {
+  if (typeof v.id !== 'string') return null;
+  return {
+    id: v.id,
+    minAsset: num(v.minAsset),
+    // maxAsset이 없으면 "이 금액 이상" 구간 — undefined를 그대로 살려야 한다
+    maxAsset: typeof v.maxAsset === 'number' && Number.isFinite(v.maxAsset) ? v.maxAsset : undefined,
+    salary: num(v.salary),
+    investment: num(v.investment),
+    expense: num(v.expense),
+    monthlyReturnRate: num(v.monthlyReturnRate),
+  };
+}
+
 function normalizeArray<T>(v: unknown, fn: (x: Record<string, unknown>) => T | null): T[] {
   if (!Array.isArray(v)) return [];
   return v
@@ -133,6 +147,11 @@ export function normalizeAppData(v: unknown): AppData | null {
     version: 1,
     settings: normalizeSettings(v.settings),
     simulator: normalizeSimulator(v.simulator),
+    // 저장된 구간이 하나도 없으면 기본 구간으로 시작한다 (빈 시뮬레이터 방지)
+    simulatorTiers: (() => {
+      const tiers = normalizeArray(v.simulatorTiers, normalizeTier);
+      return tiers.length > 0 ? tiers : DEFAULT_DATA.simulatorTiers.map((t) => ({ ...t }));
+    })(),
     snapshots: normalizeArray(v.snapshots, normalizeSnapshot),
     records: normalizeArray(v.records, normalizeRecord),
     milestones: normalizeArray(v.milestones, normalizeMilestone),
