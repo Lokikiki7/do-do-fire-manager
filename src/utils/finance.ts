@@ -4,6 +4,7 @@
  * 계산기/시뮬레이터/대시보드가 같은 로직을 공유한다.
  */
 import type { SimulatorInput, SimulationPoint, ReturnRateTier, DailyRecord } from '@/types';
+import { normalizeDate } from '@/utils/format';
 
 /**
  * 실질 수익률 (피셔 방정식).
@@ -180,6 +181,8 @@ export interface AssetPoint {
   investedPrincipal: number;
   /** 그 시점까지 누적 투자 수익 (원금 × 수익률의 합계) */
   investmentGain: number;
+  /** 그 시점까지 누적 현금성 저축 (순저축 중 투자로 가지 않고 남은 몫) */
+  cashSaving: number;
 }
 
 /**
@@ -203,12 +206,16 @@ export function buildAssetSeries(
   initialAsset: number,
   initialLiability: number,
 ): AssetPoint[] {
-  const sorted = [...records].sort((a, b) => a.date.localeCompare(b.date));
+  // 정규화한 날짜로 정렬 — '2026-8-5'가 섞여 있어도 순서가 깨지지 않는다
+  const sorted = [...records].sort((a, b) =>
+    normalizeDate(a.date).localeCompare(normalizeDate(b.date)),
+  );
   let assets = initialAsset;
   let liabilities = Math.max(0, initialLiability);
   let prevNet = assets - liabilities;
   let investedPrincipal = 0;
   let investmentGain = 0;
+  let cashSaving = 0;
 
   return sorted.map((r) => {
     // 실제로 부채를 줄이는 금액 (남은 부채 한도 내)
@@ -219,6 +226,7 @@ export function buildAssetSeries(
     // 얼마를 넣었는지는 따로 누적해서 보여준다 (수익과 원금을 구분하기 위함)
     investedPrincipal += Math.max(0, r.investment);
     investmentGain += gain;
+    cashSaving += Math.max(0, r.saving);
 
     assets += r.income - r.fixedExpense - r.variableExpense - r.debt + gain;
     liabilities -= debtPaid;
@@ -235,8 +243,74 @@ export function buildAssetSeries(
       change,
       investedPrincipal,
       investmentGain,
+      cashSaving,
     };
   });
+}
+
+/** 특정 시점까지의 누적 집계 (수입/지출 페이지 모달 · 대시보드 · 통계 공용) */
+export interface CumulativeTotals {
+  /** 누적금액 (부채 제외) — 현금성 자산 + 투자 자산 */
+  totalAssets: number;
+  /** 그 시점 남은 부채 */
+  liabilities: number;
+  /** 총 누적금액 = totalAssets - liabilities */
+  netWorth: number;
+  /** 누적 투자 원금 (내가 넣은 돈) */
+  investedPrincipal: number;
+  /** 누적 투자 수익 (원금 × 수익률) */
+  investmentGain: number;
+  /** 투자 평가액 = 원금 + 수익 */
+  investmentValue: number;
+  /** 누적 현금성 저축 (순저축 중 투자로 가지 않은 몫) */
+  cashSaving: number;
+  /** 합산에 실제로 포함된 기록 수 */
+  recordCount: number;
+}
+
+/**
+ * 선택한 날짜까지의 누적 집계를 구한다 (해당 날짜 포함).
+ *
+ * 투자금은 누적금액에 "다시" 더하지 않는다.
+ * 투자금 + 저축 = 순저축이므로(BudgetPage에서 순저축을 쪼개 저장한다)
+ * 이미 수입 - 지출로 잡힌 돈을 또 더하면 이중계산이 된다.
+ * 투자가 누적을 늘리는 경로는 오직 `투자금 × 수익률`뿐이고,
+ * 원금은 현금 → 투자자산 이동이라 총액을 바꾸지 않는다.
+ *
+ * 즉 대략 다음 항등식이 성립한다:
+ *   totalAssets ≈ 초기자산 + investedPrincipal + cashSaving + investmentGain
+ *
+ * buildAssetSeries를 그대로 재사용하므로 대시보드/통계와 숫자가 어긋나지 않는다.
+ */
+export function cumulativeUpTo(
+  records: DailyRecord[],
+  date: string,
+  initialAsset: number,
+  initialLiability: number,
+): CumulativeTotals {
+  // 문자열 비교 전에 양쪽 다 정규화 — '2026-8-5' 같은 값이 섞여도 안전
+  const cutoff = normalizeDate(date);
+  const upTo = records.filter((r) => normalizeDate(r.date) <= cutoff);
+
+  const series = buildAssetSeries(upTo, initialAsset, initialLiability);
+  const last = series[series.length - 1];
+
+  // 기록이 하나도 없으면 초기 설정값이 그대로 누적액이 된다
+  const totalAssets = last?.totalAssets ?? initialAsset;
+  const liabilities = last?.liabilities ?? Math.max(0, initialLiability);
+  const investedPrincipal = last?.investedPrincipal ?? 0;
+  const investmentGain = last?.investmentGain ?? 0;
+
+  return {
+    totalAssets,
+    liabilities,
+    netWorth: totalAssets - liabilities,
+    investedPrincipal,
+    investmentGain,
+    investmentValue: investedPrincipal + investmentGain,
+    cashSaving: last?.cashSaving ?? 0,
+    recordCount: series.length,
+  };
 }
 
 /**

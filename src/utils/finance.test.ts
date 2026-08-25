@@ -13,6 +13,7 @@ import {
   toPresentValue,
   buildAssetSeries,
   monthlyInvestmentRate,
+  cumulativeUpTo,
 } from '@/utils/finance';
 import type { SimulatorInput, DailyRecord } from '@/types';
 
@@ -324,5 +325,111 @@ describe('monthlyInvestmentRate — 월 투자액 환산', () => {
     // 10일에 걸쳐 총 100 투자 → 하루 10 → 월 300
     const result = monthlyInvestmentRate([rec(iso(d1), 50), rec(iso(d2), 50)]);
     expect(result).toBeCloseTo(300, 0);
+  });
+});
+
+describe('cumulativeUpTo — 선택한 날짜까지 누적', () => {
+  const rec = (date: string, p: Partial<DailyRecord> = {}): DailyRecord => ({
+    id: date,
+    date,
+    income: 0,
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: 0,
+    investment: 0,
+    saving: 0,
+    ...p,
+  });
+
+  it('기록이 없으면 초기 설정값이 그대로 누적액', () => {
+    const c = cumulativeUpTo([], '2026-01-01', 1000, 400);
+    expect(c.totalAssets).toBe(1000);
+    expect(c.liabilities).toBe(400);
+    expect(c.netWorth).toBe(600);
+    expect(c.recordCount).toBe(0);
+  });
+
+  it('선택한 날짜 이후 기록은 제외한다', () => {
+    const records = [
+      rec('2026-01-01', { income: 100 }),
+      rec('2026-01-02', { income: 200 }),
+      rec('2026-01-03', { income: 400 }),
+    ];
+    const c = cumulativeUpTo(records, '2026-01-02', 0, 0);
+    expect(c.totalAssets).toBe(300); // 100 + 200, 400은 미포함
+    expect(c.recordCount).toBe(2);
+  });
+
+  it('선택한 날짜 당일 기록은 포함한다', () => {
+    const c = cumulativeUpTo([rec('2026-01-02', { income: 200 })], '2026-01-02', 0, 0);
+    expect(c.totalAssets).toBe(200);
+  });
+
+  it('투자금은 누적금액을 늘리지 않는다 (순저축을 쪼갠 것이라 이중계산 방지)', () => {
+    const withInvestment = cumulativeUpTo(
+      [rec('2026-01-01', { income: 1000, investment: 600, saving: 400 })],
+      '2026-01-01',
+      0,
+      0,
+    );
+    const withoutInvestment = cumulativeUpTo(
+      [rec('2026-01-01', { income: 1000, saving: 1000 })],
+      '2026-01-01',
+      0,
+      0,
+    );
+    // 투자로 600을 돌리든 전액 저축하든 누적금액은 수입 1000 그대로
+    expect(withInvestment.totalAssets).toBe(1000);
+    expect(withoutInvestment.totalAssets).toBe(1000);
+  });
+
+  it('투자 수익만 누적금액에 더해진다', () => {
+    const c = cumulativeUpTo(
+      [rec('2026-01-01', { income: 1000, investment: 1000, investmentReturnRate: 10 })],
+      '2026-01-01',
+      0,
+      0,
+    );
+    expect(c.investedPrincipal).toBe(1000);
+    expect(c.investmentGain).toBe(100);
+    expect(c.investmentValue).toBe(1100); // 원금 + 수익
+    expect(c.totalAssets).toBe(1100); // 수입 1000 + 수익 100 (원금은 재차 더하지 않음)
+  });
+
+  it('원금 + 현금저축 + 수익이 누적금액과 맞아떨어진다', () => {
+    const c = cumulativeUpTo(
+      [
+        rec('2026-01-01', { income: 1000, investment: 600, saving: 400 }),
+        rec('2026-01-02', { income: 500, investment: 500, investmentReturnRate: 10 }),
+      ],
+      '2026-01-02',
+      0,
+      0,
+    );
+    expect(c.investedPrincipal).toBe(1100);
+    expect(c.cashSaving).toBe(400);
+    expect(c.investmentGain).toBe(50);
+    expect(c.totalAssets).toBe(c.investedPrincipal + c.cashSaving + c.investmentGain);
+  });
+
+  it('부채는 상환한 만큼 줄고 총 누적금액에서 빠진다', () => {
+    const c = cumulativeUpTo([rec('2026-01-01', { debt: 300 })], '2026-01-01', 1000, 400);
+    expect(c.liabilities).toBe(100);
+    expect(c.totalAssets).toBe(700);
+    expect(c.netWorth).toBe(600);
+  });
+
+  it('zero-pad 되지 않은 날짜도 올바르게 비교한다', () => {
+    const records = [
+      rec('2026-8-5', { income: 100 }),
+      rec('2026-12-01', { income: 200 }),
+    ];
+    // 문자열 비교만 하면 '2026-8-5' > '2026-12-01' 이라 12월 기록이 잘려나간다
+    const c = cumulativeUpTo(records, '2026-12-31', 0, 0);
+    expect(c.totalAssets).toBe(300);
+    expect(c.recordCount).toBe(2);
+
+    const august = cumulativeUpTo(records, '2026-8-31', 0, 0);
+    expect(august.totalAssets).toBe(100);
   });
 });

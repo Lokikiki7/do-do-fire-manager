@@ -1,5 +1,6 @@
 import type { AppData, Settings, AssetSnapshot, DailyRecord, Milestone, Goal, SimulatorInput, Currency, ThemeMode, GoalTerm } from '@/types';
 import { DEFAULT_DATA } from '@/constants';
+import { normalizeDate } from '@/utils/format';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0): number => typeof v === 'number' && Number.isFinite(v) ? v : fallback;
@@ -31,7 +32,7 @@ function normalizeSnapshot(v: Record<string, unknown>): AssetSnapshot | null {
   if (typeof v.id !== 'string' || typeof v.date !== 'string') return null;
   return {
     id: v.id,
-    date: v.date,
+    date: normalizeDate(v.date),
     totalAssets: num(v.totalAssets),
     liabilities: num(v.liabilities),
     memo: typeof v.memo === 'string' ? v.memo : undefined,
@@ -42,7 +43,9 @@ function normalizeRecord(v: Record<string, unknown>): DailyRecord | null {
   if (typeof v.id !== 'string' || typeof v.date !== 'string') return null;
   return {
     id: v.id,
-    date: v.date,
+    // 임포트/동기화로 들어온 '2026-8-5'를 여기서 한 번에 교정한다.
+    // 이후 코드는 전부 문자열 비교라 정규화되지 않은 날짜가 섞이면 정렬이 깨진다.
+    date: normalizeDate(v.date),
     income: num(v.income),
     fixedExpense: num(v.fixedExpense),
     variableExpense: num(v.variableExpense),
