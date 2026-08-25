@@ -14,6 +14,8 @@ import {
   buildAssetSeries,
   monthlyInvestmentRate,
   cumulativeUpTo,
+  netSavingOf,
+  totalExpenseOf,
 } from '@/utils/finance';
 import type { SimulatorInput, DailyRecord } from '@/types';
 
@@ -495,5 +497,122 @@ describe('cumulativeUpTo — 선택한 날짜까지 누적', () => {
 
     const august = cumulativeUpTo(records, '2026-8-31', 0, 0);
     expect(august.totalAssets).toBe(100);
+  });
+});
+
+describe('totalExpenseOf — 통합 지출 + 과거 고정/변동 합산', () => {
+  const of = (p: Partial<DailyRecord>) =>
+    totalExpenseOf({ expense: 0, fixedExpense: 0, variableExpense: 0, ...p });
+
+  it('통합 지출만 있는 새 기록', () => {
+    expect(of({ expense: 500 })).toBe(500);
+  });
+
+  it('고정/변동으로 나뉜 과거 기록도 합산한다', () => {
+    expect(of({ fixedExpense: 300, variableExpense: 200 })).toBe(500);
+  });
+
+  it('expense가 없는(undefined) 과거 기록도 안전하다', () => {
+    expect(totalExpenseOf({ fixedExpense: 300, variableExpense: 200 })).toBe(500);
+  });
+
+  it('섞여 있어도 전부 더한다', () => {
+    expect(of({ expense: 100, fixedExpense: 300, variableExpense: 200 })).toBe(600);
+  });
+});
+
+describe('netSavingOf — 통합 지출 반영', () => {
+  it('수입 − 지출 − 부채상환', () => {
+    expect(
+      netSavingOf({ income: 1000, expense: 300, fixedExpense: 0, variableExpense: 0, debt: 200 }),
+    ).toBe(500);
+  });
+
+  it('과거 방식으로 저장된 지출도 똑같이 빠진다', () => {
+    expect(
+      netSavingOf({ income: 1000, expense: 0, fixedExpense: 200, variableExpense: 100, debt: 200 }),
+    ).toBe(500);
+  });
+});
+
+describe('cumulativeUpTo — 현금 / 투자자산 분해', () => {
+  const rec = (date: string, p: Partial<DailyRecord> = {}): DailyRecord => ({
+    id: date,
+    date,
+    income: 0,
+    expense: 0,
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: 0,
+    investment: 0,
+    saving: 0,
+    ...p,
+  });
+
+  it('요청 예시 그대로: 현금 200만 + 투자자산 880만 = 1,080만, 부채 300만 → 총 780만', () => {
+    const c = cumulativeUpTo(
+      [
+        rec('2026-08-25', {
+          income: 10_000_000,
+          investment: 8_000_000,
+          saving: 2_000_000,
+          investmentReturnRate: 10,
+        }),
+      ],
+      '2026-08-25',
+      0,
+      3_000_000,
+    );
+
+    expect(c.investedPrincipal).toBe(8_000_000);
+    expect(c.investmentGain).toBe(800_000);
+    expect(c.investmentValue).toBe(8_800_000); // 800만 × (1 + 10%)
+    expect(c.cash).toBe(2_000_000);
+    expect(c.totalAssets).toBe(10_800_000); // 현금 200만 + 투자자산 880만
+    expect(c.liabilities).toBe(3_000_000);
+    expect(c.netWorth).toBe(7_800_000); // 1,080만 − 300만
+    expect(c.averageReturnRate).toBeCloseTo(10, 6);
+  });
+
+  it('누적금액은 항상 현금 + 투자자산으로 쪼개진다', () => {
+    const c = cumulativeUpTo(
+      [
+        rec('2026-01-01', { income: 1000, investment: 600, saving: 400, investmentReturnRate: 5 }),
+        rec('2026-01-02', { income: 500, expense: 200, investment: 100, saving: 200 }),
+      ],
+      '2026-01-02',
+      700,
+      0,
+    );
+    expect(c.totalAssets).toBe(c.cash + c.investmentValue);
+  });
+
+  it('초기자산은 현금 쪽에 포함된다', () => {
+    const c = cumulativeUpTo([rec('2026-01-01', { income: 100 })], '2026-01-01', 5000, 0);
+    expect(c.cash).toBe(5100);
+    expect(c.investmentValue).toBe(0);
+  });
+
+  it('평균 수익률은 투자금액 가중평균이다', () => {
+    // 500 @ 10% → 50, 300 @ 0% → 0. 누적 원금 800, 수익 50 → 6.25%
+    const c = cumulativeUpTo(
+      [
+        rec('2026-01-01', { income: 500, investment: 500, investmentReturnRate: 10 }),
+        rec('2026-01-02', { income: 300, investment: 300, investmentReturnRate: 0 }),
+      ],
+      '2026-01-02',
+      0,
+      0,
+    );
+    expect(c.investedPrincipal).toBe(800);
+    expect(c.investmentGain).toBe(50);
+    expect(c.averageReturnRate).toBeCloseTo(6.25, 6);
+    // 요청하신 "누적 투자금 × (1 + 평균 수익률)" 공식과 일치한다
+    expect(c.investmentValue).toBeCloseTo(800 * (1 + 6.25 / 100), 6);
+  });
+
+  it('투자 기록이 없으면 평균 수익률은 0 (0으로 나눔 방어)', () => {
+    const c = cumulativeUpTo([rec('2026-01-01', { income: 100 })], '2026-01-01', 0, 0);
+    expect(c.averageReturnRate).toBe(0);
   });
 });

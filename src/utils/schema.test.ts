@@ -75,3 +75,33 @@ describe('normalizeRecord — 투자금 + 저축 = 순저축 복구', () => {
     expect(r.investment + r.saving).toBe(netSavingOf(r));
   });
 });
+
+describe('normalizeRecord — 통합 지출 / 과거 고정·변동 기록', () => {
+  it('통합 지출을 보존한다', () => {
+    const r = loadRecord({ ...base, expense: 300 });
+    expect(r.expense).toBe(300);
+    expect(r.saving).toBe(700); // 1000 - 300
+  });
+
+  it('expense가 없던 과거 기록은 0으로 채운다', () => {
+    expect(loadRecord(base).expense).toBe(0);
+  });
+
+  it('고정/변동으로 나뉜 과거 기록의 값은 지우지 않는다', () => {
+    const r = loadRecord({ ...base, fixedExpense: 200, variableExpense: 100 });
+    expect(r.fixedExpense).toBe(200);
+    expect(r.variableExpense).toBe(100);
+  });
+
+  it('과거 기록의 순저축도 고정+변동을 합쳐서 계산한다', () => {
+    const r = loadRecord({ ...base, fixedExpense: 200, variableExpense: 100, investment: 400 });
+    expect(r.saving).toBe(300); // 1000 - 300 - 400
+    expect(r.investment + r.saving).toBe(netSavingOf(r));
+  });
+
+  it('통합 지출과 과거 지출이 섞여 있어도 전부 반영한다', () => {
+    const r = loadRecord({ ...base, expense: 100, fixedExpense: 200, variableExpense: 100 });
+    expect(r.saving).toBe(600); // 1000 - 400
+    expect(r.investment + r.saving).toBe(netSavingOf(r));
+  });
+});

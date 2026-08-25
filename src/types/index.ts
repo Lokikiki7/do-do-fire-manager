@@ -27,7 +27,16 @@ export interface DailyRecord {
   id: string;
   date: string;
   income: number;
+  /**
+   * 통합 지출. 고정/변동을 구분하지 않는다 (구분할 근거가 기록에 없다).
+   * 아래 fixedExpense/variableExpense는 구분해서 저장하던 시절의 기록을
+   * 그대로 읽기 위해 남겨둔 것으로, 새 기록은 항상 여기에만 쌓인다.
+   * 총지출을 구할 때는 반드시 totalExpenseOf()를 써서 셋을 합산할 것.
+   */
+  expense?: number;
+  /** @deprecated 과거 기록 호환용 — 새 기록은 expense를 쓴다 */
   fixedExpense: number;
+  /** @deprecated 과거 기록 호환용 — 새 기록은 expense를 쓴다 */
   variableExpense: number;
   debt: number;
   investment: number;

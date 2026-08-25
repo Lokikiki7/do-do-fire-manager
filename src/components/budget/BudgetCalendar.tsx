@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, SectionTitle, Button, cn } from '@/components/ui';
 import { formatMoney, formatShort, todayISO } from '@/utils/format';
+import { totalExpenseOf } from '@/utils/finance';
 import type { DailyRecord, Currency } from '@/types';
 
 const DAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -104,7 +105,7 @@ export function BudgetCalendar({ date, onDateChange, records, currency }: Budget
           const dayString = day ? getDayString(day) : '';
           const record = day ? recordMap.get(dayString) : undefined;
           const isToday = dayString === todayStr;
-          const expense = record ? record.fixedExpense + record.variableExpense : 0;
+          const expense = record ? totalExpenseOf(record) : 0;
           const net = record ? record.income - expense : 0;
 
           return (

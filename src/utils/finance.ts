@@ -167,16 +167,27 @@ export function savingRate(
 }
 
 /**
- * 그날 새로 생긴 돈 = 수입 − 고정지출 − 변동지출 − 부채상환.
+ * 그날의 총지출.
+ * 새 기록은 expense 하나만 쓰지만, 고정/변동을 나눠 저장하던 시절의 기록이
+ * 남아 있으므로 셋을 모두 합산한다. (셋 중 둘은 항상 0이다)
+ */
+export function totalExpenseOf(
+  r: Pick<DailyRecord, 'expense' | 'fixedExpense' | 'variableExpense'>,
+): number {
+  return (r.expense ?? 0) + r.fixedExpense + r.variableExpense;
+}
+
+/**
+ * 그날 새로 생긴 돈 = 수입 − 지출 − 부채상환.
  *
  * 지출이 수입보다 크면 음수가 된다. 예전에는 이 값을 0으로 잘라냈는데,
  * 그러면 "투자금 + 저축 = 순저축" 관계가 깨져 누적 분해가 어긋났다.
  * 자산 계산 · 배분 · 검증이 모두 이 정의 하나를 공유한다.
  */
 export function netSavingOf(
-  r: Pick<DailyRecord, 'income' | 'fixedExpense' | 'variableExpense' | 'debt'>,
+  r: Pick<DailyRecord, 'income' | 'expense' | 'fixedExpense' | 'variableExpense' | 'debt'>,
 ): number {
-  return r.income - r.fixedExpense - r.variableExpense - r.debt;
+  return r.income - totalExpenseOf(r) - r.debt;
 }
 
 /** 자산 추이의 한 지점 (수입/지출 기록에서 파생) */
@@ -269,8 +280,10 @@ export function buildAssetSeries(
 
 /** 특정 시점까지의 누적 집계 (수입/지출 페이지 모달 · 대시보드 · 통계 공용) */
 export interface CumulativeTotals {
-  /** 누적금액 (부채 제외) — 현금성 자산 + 투자 자산 */
+  /** 누적금액 (부채 제외) = cash + investmentValue */
   totalAssets: number;
+  /** 현금성 자산 = 초기자산 + 누적 현금저축 (투자로 빠져나가지 않고 남은 돈) */
+  cash: number;
   /** 그 시점 남은 부채 */
   liabilities: number;
   /** 총 누적금액 = totalAssets - liabilities */
@@ -283,6 +296,8 @@ export interface CumulativeTotals {
   investmentValue: number;
   /** 누적 현금성 저축 (순저축 중 투자로 가지 않은 몫) */
   cashSaving: number;
+  /** 누적 원금 대비 평균 수익률(%) — 투자금액 가중평균 */
+  averageReturnRate: number;
   /** 합산에 실제로 포함된 기록 수 */
   recordCount: number;
 }
@@ -320,14 +335,21 @@ export function cumulativeUpTo(
   const investedPrincipal = last?.investedPrincipal ?? 0;
   const investmentGain = last?.investmentGain ?? 0;
 
+  // 투자자산 평가액 = 누적 원금 × (1 + 평균 수익률)
+  //                = 누적 원금 + 누적 수익   ← 평균이 투자금액 가중평균이라 같은 식이다
+  const investmentValue = investedPrincipal + investmentGain;
+
   return {
     totalAssets,
+    // 누적금액에서 투자자산을 뺀 나머지가 현금. 초기자산도 여기 포함된다.
+    cash: totalAssets - investmentValue,
     liabilities,
     netWorth: totalAssets - liabilities,
     investedPrincipal,
     investmentGain,
-    investmentValue: investedPrincipal + investmentGain,
+    investmentValue,
     cashSaving: last?.cashSaving ?? 0,
+    averageReturnRate: investedPrincipal > 0 ? (investmentGain / investedPrincipal) * 100 : 0,
     recordCount: series.length,
   };
 }

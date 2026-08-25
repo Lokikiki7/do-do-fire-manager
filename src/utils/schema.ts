@@ -66,6 +66,8 @@ function normalizeRecord(v: Record<string, unknown>): DailyRecord | null {
     // 이후 코드는 전부 문자열 비교라 정규화되지 않은 날짜가 섞이면 정렬이 깨진다.
     date: normalizeDate(v.date),
     income: num(v.income),
+    expense: num(v.expense),
+    // 고정/변동으로 나눠 저장하던 시절의 기록은 값을 그대로 보존한다 (합산해서 쓴다)
     fixedExpense: num(v.fixedExpense),
     variableExpense: num(v.variableExpense),
     debt: num(v.debt),
