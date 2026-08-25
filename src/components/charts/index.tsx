@@ -135,6 +135,57 @@ export function AssetAreaChart({ data, currency }: { data: SeriesPoint[]; curren
 }
 
 // ─────────────────────────────────────────────
+// 자산 구성 추이 (현금 / 투자 / 부채)
+// ─────────────────────────────────────────────
+interface BreakdownPoint {
+  x: string;
+  현금: number;
+  투자: number;
+  부채: number;
+}
+export function AssetBreakdownChart({
+  data,
+  currency,
+}: {
+  data: BreakdownPoint[];
+  currency: Currency;
+}) {
+  const last = data[data.length - 1];
+  const ariaLabel = last
+    ? `자산 구성 추이 그래프. 현금 ${formatMoney(last.현금, currency)}, 투자 ${formatMoney(last.투자, currency)}, 부채 ${formatMoney(last.부채, currency)}.`
+    : '자산 구성 추이 그래프. 데이터 없음.';
+  return (
+    <ChartFrame label={ariaLabel}>
+      <ResponsiveContainer width="100%" height={300}>
+        <AreaChart data={data} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+          <defs>
+            <linearGradient id="gCash" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.positive} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={C.positive} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gInvest" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.accent} stopOpacity={0.3} />
+              <stop offset="100%" stopColor={C.accent} stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="gDebt" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={C.negative} stopOpacity={0.25} />
+              <stop offset="100%" stopColor={C.negative} stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={C.grid} strokeOpacity={0.12} vertical={false} />
+          <XAxis dataKey="x" {...axisProps} minTickGap={28} />
+          <YAxis {...axisProps} width={44} tickFormatter={(v) => formatShort(v, currency)} />
+          <Tooltip content={<ChartTooltip currency={currency} />} />
+          <Area type="monotone" dataKey="현금" stroke={C.positive} strokeWidth={2} fill="url(#gCash)" />
+          <Area type="monotone" dataKey="투자" stroke={C.accent} strokeWidth={2.5} fill="url(#gInvest)" />
+          <Area type="monotone" dataKey="부채" stroke={C.negative} strokeWidth={2} fill="url(#gDebt)" />
+        </AreaChart>
+      </ResponsiveContainer>
+    </ChartFrame>
+  );
+}
+
+// ─────────────────────────────────────────────
 // 복리 성장 라인 (원금 vs 수익 비교)
 // ─────────────────────────────────────────────
 export function CompoundLineChart({
