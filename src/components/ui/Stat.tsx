@@ -19,8 +19,6 @@ interface StatCardProps {
   deltaType?: 'up' | 'down' | 'neutral';
   accent?: 'blue' | 'green' | 'gold' | 'red';
   delay?: number;
-  /** 좁은 칸에 4개를 나란히 놓을 때 — 글자와 여백을 줄이고 아이콘은 넓은 화면에서만 */
-  compact?: boolean;
 }
 
 const accentMap = {
@@ -38,7 +36,6 @@ export const StatCard = memo(function StatCard({
   deltaType = 'neutral',
   accent = 'blue',
   delay = 0,
-  compact = false,
 }: StatCardProps) {
   const deltaColor =
     deltaType === 'up'
@@ -47,49 +44,18 @@ export const StatCard = memo(function StatCard({
         ? 'text-negative'
         : 'text-ink-faint';
   return (
-    <Card delay={delay} className={cn('flex flex-col', compact ? 'gap-2 p-3 sm:p-5' : 'gap-3')}>
-      <div className="flex items-center justify-between gap-1">
-        <span
-          className={cn(
-            'text-ink-soft font-medium leading-tight',
-            compact ? 'text-[11px] sm:text-sm' : 'text-sm',
-          )}
-        >
-          {label}
-        </span>
+    <Card delay={delay} className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-ink-soft font-medium">{label}</span>
         {icon && (
-          <span
-            className={cn(
-              'w-8 h-8 rounded-full grid place-items-center shrink-0',
-              accentMap[accent],
-              // 좁은 화면에서는 아이콘이 숫자 자리를 뺏으므로 감춘다
-              compact && 'hidden sm:grid',
-            )}
-          >
+          <span className={cn('w-8 h-8 rounded-full grid place-items-center', accentMap[accent])}>
             {icon}
           </span>
         )}
       </div>
       <div>
-        <p
-          className={cn(
-            'font-bold tabular tracking-tight',
-            compact ? 'text-base sm:text-2xl' : 'text-2xl',
-          )}
-        >
-          {value}
-        </p>
-        {delta && (
-          <p
-            className={cn(
-              'font-medium mt-0.5 tabular leading-tight',
-              compact ? 'text-[10px] sm:text-sm' : 'text-sm',
-              deltaColor,
-            )}
-          >
-            {delta}
-          </p>
-        )}
+        <p className="text-2xl font-bold tabular tracking-tight">{value}</p>
+        {delta && <p className={cn('text-sm font-medium mt-0.5 tabular', deltaColor)}>{delta}</p>}
       </div>
     </Card>
   );
