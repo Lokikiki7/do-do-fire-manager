@@ -13,7 +13,7 @@ import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { Card, SectionTitle, Button, Field, Input, EmptyState, cn, Modal } from '@/components/ui';
 import { BudgetCalendar } from '@/components/budget/BudgetCalendar';
 import { BudgetBarChart } from '@/components/charts';
-import { savingRate, buildAssetSeries, cumulativeUpTo } from '@/utils/finance';
+import { savingRate, buildAssetSeries, cumulativeUpTo, netSavingOf } from '@/utils/finance';
 import { parseAmount } from '@/utils/validate';
 import { formatMoney, formatPercent, todayISO, uid } from '@/utils/format';
 import type { DailyRecord } from '@/types';
@@ -45,6 +45,8 @@ export function BudgetPage() {
   const { currency } = data.settings;
   const [modalDate, setModalDate] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY);
+  /** 투자금·저축 중 사용자가 마지막으로 직접 고친 쪽 — 나머지 한쪽은 여기서 파생된다 */
+  const [allocAnchor, setAllocAnchor] = useState<'investment' | 'saving'>('investment');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const records = data.records;
@@ -54,11 +56,15 @@ export function BudgetPage() {
     setModalDate(value);
     const r = records.find((x) => x.date === value);
     setForm(r ? toForm(r) : (prefill ?? EMPTY));
+    // 저장된 기록은 이미 투자금 + 저축 = 순저축을 만족하므로
+    // 투자금을 기준으로 삼으면 저축이 저장된 값 그대로 다시 계산된다
+    setAllocAnchor('investment');
   };
 
   const closeModal = () => {
     setModalDate(null);
     setForm(EMPTY);
+    setAllocAnchor('investment');
   };
 
   const income = parseAmount(form.income);
@@ -68,11 +74,19 @@ export function BudgetPage() {
   const investment = parseAmount(form.investment);
   const saving = parseAmount(form.saving);
 
-  const totalExpense = fixedExp + varExp + debtPayment;
-  const savableAmount = Math.max(0, income - totalExpense);
+  // 지출이 수입보다 크면 음수 그대로 둔다 (0으로 자르면 배분 합이 어긋난다)
+  const netSaving = netSavingOf({
+    income,
+    fixedExpense: fixedExp,
+    variableExpense: varExp,
+    debt: debtPayment,
+  });
 
-  const autoSaving = investment > 0 ? Math.max(0, savableAmount - investment) : saving;
-  const autoInvestment = saving > 0 ? Math.max(0, savableAmount - saving) : investment;
+  // 투자금과 저축은 순저축을 나눠 담는 한 쌍이라 합이 항상 순저축과 같아야 한다.
+  // 마지막으로 건드린 쪽을 기준(anchor)으로 삼고 나머지 한쪽을 자동으로 맞춘다.
+  // 예전에는 둘을 각각 계산해서 둘 다 입력하면 합이 순저축을 넘어갔다.
+  const allocInvestment = allocAnchor === 'investment' ? investment : netSaving - saving;
+  const allocSaving = allocAnchor === 'investment' ? netSaving - investment : saving;
 
   /** 지금 모달에 입력된 값으로 만든, 아직 저장되지 않은 기록 (id는 저장 시점에 확정) */
   const draftRecord: DailyRecord = {
@@ -82,8 +96,8 @@ export function BudgetPage() {
     fixedExpense: fixedExp,
     variableExpense: varExp,
     debt: debtPayment,
-    investment: autoInvestment,
-    saving: autoSaving,
+    investment: allocInvestment,
+    saving: allocSaving,
     investmentReturnRate: parseAmount(form.investmentReturnRate),
   };
 
@@ -108,6 +122,17 @@ export function BudgetPage() {
 
   const setField = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  /** 투자금·저축은 건드린 쪽이 기준이 되고 반대쪽이 자동으로 따라온다 */
+  const setAllocField =
+    (k: 'investment' | 'saving') => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setAllocAnchor(k);
+      setField(k)(e);
+    };
+
+  /** 파생된 배분 금액을 입력창에 넣을 문자열로 (0은 비워 둬야 바로 덧입력할 수 있다) */
+  const allocValue = (side: 'investment' | 'saving', derived: number) =>
+    allocAnchor === side ? form[side] : derived === 0 ? '' : String(derived);
 
   /** 다음 날짜로 복제 — 원본 기록의 값을 프리필해서 모달을 연다 */
   const duplicate = (r: DailyRecord) => {
@@ -225,8 +250,13 @@ export function BudgetPage() {
                   <Input type="number" inputMode="numeric" placeholder="0" value={form.debt} onChange={setField('debt')} />
                 </Field>
                 <Field label="순저축" hint="자동">
-                  <div className="flex items-center justify-center h-11 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.08] text-xs font-semibold text-accent tabular">
-                    {formatMoney(savableAmount, currency)}
+                  <div
+                    className={cn(
+                      'flex items-center justify-center h-11 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.08] text-xs font-semibold tabular',
+                      netSaving >= 0 ? 'text-accent' : 'text-negative',
+                    )}
+                  >
+                    {formatMoney(netSaving, currency)}
                   </div>
                 </Field>
               </div>
@@ -235,15 +265,21 @@ export function BudgetPage() {
             <div className="p-3 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.06]">
               <div className="text-xs font-semibold text-ink-faint mb-3 uppercase tracking-wide">투자 배분</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="투자금">
-                  <Input type="number" inputMode="numeric" placeholder="0" value={form.investment} onChange={setField('investment')} />
+                <Field label="투자금" hint={allocAnchor === 'saving' ? '자동' : undefined}>
+                  <Input type="number" inputMode="numeric" placeholder="0" value={allocValue('investment', allocInvestment)} onChange={setAllocField('investment')} />
                 </Field>
                 <Field label="수익률 (%)">
                   <Input type="number" inputMode="decimal" placeholder="0" value={form.investmentReturnRate} onChange={setField('investmentReturnRate')} step="0.1" min="0" max="100" />
                 </Field>
-                <Field label="저축">
-                  <Input type="number" inputMode="numeric" placeholder={autoSaving > 0 ? String(autoSaving) : '0'} value={form.saving} onChange={setField('saving')} />
+                <Field label="저축" hint={allocAnchor === 'investment' ? '자동' : undefined}>
+                  <Input type="number" inputMode="numeric" placeholder="0" value={allocValue('saving', allocSaving)} onChange={setAllocField('saving')} />
                 </Field>
+              </div>
+              <div className="mt-2 text-[10px] text-ink-faint leading-relaxed">
+                투자금과 저축은 순저축{' '}
+                <span className="font-semibold text-ink-soft tabular">{formatMoney(netSaving, currency)}</span>
+                을 나눠 담습니다. 한쪽을 입력하면 나머지가 자동으로 맞춰집니다.
+                {allocSaving < 0 && ' 저축이 음수면 기존 현금을 헐어 투자한 것으로 봅니다.'}
               </div>
             </div>
 

@@ -289,17 +289,46 @@ describe('누적 투자 원금 / 수익 추적', () => {
     expect(s[1].netWorth).toBe(20);
   });
 
-  it('음수 투자금은 원금 누적에서 제외한다', () => {
+  it('음수 투자금(투자자산을 헐어 현금화)도 원금 누적에 그대로 반영한다', () => {
     const s = buildAssetSeries([rec('2026-01-01', { investment: -50 })], 0, 0);
-    expect(s[0].investedPrincipal).toBe(0);
+    expect(s[0].investedPrincipal).toBe(-50);
+    // 투자에서 뺀 만큼 현금으로 돌아오므로 총액은 그대로
+    expect(s[0].cashSaving).toBe(50);
+    expect(s[0].totalAssets).toBe(0);
+  });
+
+  it('음수 투자금에는 수익률을 매기지 않는다', () => {
+    const s = buildAssetSeries(
+      [rec('2026-01-01', { investment: -50, investmentReturnRate: 10 })],
+      0,
+      0,
+    );
+    expect(s[0].investmentGain).toBe(0);
+  });
+
+  it('기록이 어긋나 있어도 원금 + 현금저축 + 수익 = 누적금액이 성립한다', () => {
+    // saving 값이 순저축과 맞지 않는(예전 로직이 만든) 기록
+    const s = buildAssetSeries(
+      [
+        rec('2026-01-01', { income: 1000, investment: 600, saving: 900 }),
+        rec('2026-01-02', { income: 500, fixedExpense: 800, investment: 0, saving: 0 }),
+      ],
+      2000,
+      0,
+    );
+    const last = s[s.length - 1];
+    expect(last.totalAssets).toBe(
+      2000 + last.investedPrincipal + last.cashSaving + last.investmentGain,
+    );
   });
 });
 
 describe('monthlyInvestmentRate — 월 투자액 환산', () => {
+  /** 수입을 전액 투자한 날 — 투자금 + 저축 = 순저축을 만족하는 기록 */
   const rec = (date: string, investment: number): DailyRecord => ({
     id: date,
     date,
-    income: 0,
+    income: investment,
     fixedExpense: 0,
     variableExpense: 0,
     debt: 0,
@@ -325,6 +354,41 @@ describe('monthlyInvestmentRate — 월 투자액 환산', () => {
     // 10일에 걸쳐 총 100 투자 → 하루 10 → 월 300
     const result = monthlyInvestmentRate([rec(iso(d1), 50), rec(iso(d2), 50)]);
     expect(result).toBeCloseTo(300, 0);
+  });
+  it('지출이 많았던 날은 월 적립액을 깎는다 (각각 0으로 자르지 않음)', () => {
+    const today = new Date();
+    const iso = (d: Date) => d.toISOString().slice(0, 10);
+    const d1 = new Date(today);
+    d1.setDate(d1.getDate() - 9);
+    const d2 = new Date(today);
+
+    const spent: DailyRecord = {
+      id: 'spent',
+      date: iso(d2),
+      income: 0,
+      fixedExpense: 100,
+      variableExpense: 0,
+      debt: 0,
+      investment: 0,
+      saving: -100,
+    };
+    // 10일간 +100 벌어 투자, -100 지출 → 순 적립 0
+    expect(monthlyInvestmentRate([rec(iso(d1), 100), spent])).toBe(0);
+  });
+
+  it('순 적립이 음수여도 0 밑으로는 내려가지 않는다', () => {
+    const today = new Date();
+    const overspent: DailyRecord = {
+      id: 'overspent',
+      date: today.toISOString().slice(0, 10),
+      income: 0,
+      fixedExpense: 500,
+      variableExpense: 0,
+      debt: 0,
+      investment: 0,
+      saving: -500,
+    };
+    expect(monthlyInvestmentRate([overspent])).toBe(0);
   });
 });
 

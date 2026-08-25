@@ -166,6 +166,19 @@ export function savingRate(
   return ((investment + saving) / income) * 100;
 }
 
+/**
+ * 그날 새로 생긴 돈 = 수입 − 고정지출 − 변동지출 − 부채상환.
+ *
+ * 지출이 수입보다 크면 음수가 된다. 예전에는 이 값을 0으로 잘라냈는데,
+ * 그러면 "투자금 + 저축 = 순저축" 관계가 깨져 누적 분해가 어긋났다.
+ * 자산 계산 · 배분 · 검증이 모두 이 정의 하나를 공유한다.
+ */
+export function netSavingOf(
+  r: Pick<DailyRecord, 'income' | 'fixedExpense' | 'variableExpense' | 'debt'>,
+): number {
+  return r.income - r.fixedExpense - r.variableExpense - r.debt;
+}
+
 /** 자산 추이의 한 지점 (수입/지출 기록에서 파생) */
 export interface AssetPoint {
   date: string; // YYYY-MM-DD
@@ -220,15 +233,21 @@ export function buildAssetSeries(
   return sorted.map((r) => {
     // 실제로 부채를 줄이는 금액 (남은 부채 한도 내)
     const debtPaid = Math.min(Math.max(0, r.debt), liabilities);
-    const gain = r.investment * ((r.investmentReturnRate || 0) / 100);
+    // 투자자산을 헐어 현금화한 날(투자금 음수)에 수익을 매기는 건 의미가 없어 0으로 본다
+    const gain = Math.max(0, r.investment) * ((r.investmentReturnRate || 0) / 100);
+    const netSaving = netSavingOf(r);
 
     // 투자 원금은 "현금 → 투자자산" 이동이라 순자산을 늘리지 않지만,
-    // 얼마를 넣었는지는 따로 누적해서 보여준다 (수익과 원금을 구분하기 위함)
-    investedPrincipal += Math.max(0, r.investment);
+    // 얼마를 넣었는지는 따로 누적해서 보여준다 (수익과 원금을 구분하기 위함).
+    //
+    // 현금저축은 저장된 r.saving이 아니라 "순저축 − 투자금"으로 직접 구한다.
+    // 그래야 기록에 어긋난 값이 들어 있어도 다음 항등식이 항상 성립한다:
+    //   totalAssets = 초기자산 + investedPrincipal + cashSaving + investmentGain
+    investedPrincipal += r.investment;
     investmentGain += gain;
-    cashSaving += Math.max(0, r.saving);
+    cashSaving += netSaving - r.investment;
 
-    assets += r.income - r.fixedExpense - r.variableExpense - r.debt + gain;
+    assets += netSaving + gain;
     liabilities -= debtPaid;
 
     const netWorth = assets - liabilities;
@@ -336,6 +355,8 @@ export function monthlyInvestmentRate(records: DailyRecord[], days = 90): number
   const last = new Date(dates[dates.length - 1]);
   const spanDays = Math.max(1, Math.round((last.getTime() - first.getTime()) / 86_400_000) + 1);
 
-  const total = recent.reduce((s, r) => s + Math.max(0, r.investment) + Math.max(0, r.saving), 0);
-  return (total / spanDays) * 30;
+  // 투자금 + 저축 = 그날의 순저축. 각각을 따로 0으로 클램프하면
+  // 지출이 많았던 날(저축 음수)이 사라져 월 적립액이 부풀려진다.
+  const total = recent.reduce((s, r) => s + netSavingOf(r), 0);
+  return Math.max(0, (total / spanDays) * 30);
 }

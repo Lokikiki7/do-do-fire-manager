@@ -1,6 +1,7 @@
 import type { AppData, Settings, AssetSnapshot, DailyRecord, Milestone, Goal, SimulatorInput, Currency, ThemeMode, GoalTerm } from '@/types';
 import { DEFAULT_DATA } from '@/constants';
 import { normalizeDate } from '@/utils/format';
+import { netSavingOf } from '@/utils/finance';
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const num = (v: unknown, fallback = 0): number => typeof v === 'number' && Number.isFinite(v) ? v : fallback;
@@ -39,9 +40,27 @@ function normalizeSnapshot(v: Record<string, unknown>): AssetSnapshot | null {
   };
 }
 
+/**
+ * 투자금 + 저축 = 순저축 을 보장한다.
+ *
+ * 저축은 "순저축 중 투자로 가지 않고 남은 몫"이라는 파생값인데,
+ * 예전 입력 로직은 투자금과 저축을 각각 따로 계산해서
+ *   - 둘 다 직접 입력하면 합이 순저축을 넘어가고
+ *   - 둘 다 비워두면 순저축이 어디에도 잡히지 않았다.
+ * 그 결과 저축률과 누적 분해(원금/현금저축)가 실제 자산과 어긋났다.
+ *
+ * 투자금은 사용자가 명시적으로 정한 값이므로 그대로 두고,
+ * 파생값인 저축만 다시 계산해 맞춘다. 지출이 수입보다 컸거나
+ * 기존 현금을 헐어 투자한 날은 저축이 음수가 되는데, 이는 정상이다.
+ */
+function reconcileAllocation(r: DailyRecord): DailyRecord {
+  const saving = netSavingOf(r) - r.investment;
+  return saving === r.saving ? r : { ...r, saving };
+}
+
 function normalizeRecord(v: Record<string, unknown>): DailyRecord | null {
   if (typeof v.id !== 'string' || typeof v.date !== 'string') return null;
-  return {
+  return reconcileAllocation({
     id: v.id,
     // 임포트/동기화로 들어온 '2026-8-5'를 여기서 한 번에 교정한다.
     // 이후 코드는 전부 문자열 비교라 정규화되지 않은 날짜가 섞이면 정렬이 깨진다.
@@ -53,7 +72,7 @@ function normalizeRecord(v: Record<string, unknown>): DailyRecord | null {
     investment: num(v.investment),
     saving: num(v.saving),
     investmentReturnRate: typeof v.investmentReturnRate === 'number' ? v.investmentReturnRate : undefined,
-  };
+  });
 }
 
 function normalizeMilestone(v: Record<string, unknown>): Milestone | null {
