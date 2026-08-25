@@ -1,40 +1,42 @@
+/**
+ * 통계 — 지표 카드 4개 + 2단 그래프 레이아웃.
+ *
+ * 좌측(넓음): 자산 구성 추이 · 월별 수입/지출
+ * 우측(좁음): 요약 통계 텍스트 · 자산 구성 도넛
+ * 1024px 미만에서는 1단으로 접힌다.
+ *
+ * 모든 수치는 buildAssetSeries에서 파생된다 (대시보드·수입/지출과 같은 소스).
+ */
 import { useMemo } from 'react';
-import { PiggyBank, TrendingUp, Percent, Flame } from 'lucide-react';
+import { Receipt, TrendingUp, Percent, Flame } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
-import { Card, SectionTitle, EmptyState } from '@/components/ui';
+import { Card, SectionTitle, EmptyState, cn } from '@/components/ui';
 import { StatCard } from '@/components/ui/Stat';
-import { CompositionPie, PIE_COLORS } from '@/components/charts';
-import { savingRate, buildAssetSeries } from '@/utils/finance';
-import { formatMoney, formatPercent, formatShort } from '@/utils/format';
+import { AssetBreakdownChart, BudgetBarChart, CompositionPie, PIE_COLORS } from '@/components/charts';
+import { buildAssetSeries, totalExpenseOf } from '@/utils/finance';
+import { formatMoney, formatPercent, formatShort, formatMonth } from '@/utils/format';
 
 export function StatsPage() {
   const { data } = useAppData();
-  const { currency } = data.settings;
+  const { currency, initialAsset, initialLiability } = data.settings;
   const { records } = data;
-  const { initialAsset, initialLiability } = data.settings;
 
   const stats = useMemo(() => {
     if (records.length === 0) return null;
 
-    const avgSaving =
-      records.reduce((s, r) => s + savingRate(r.income, r.investment, r.saving), 0) /
-      records.length;
-    const avgInvest =
-      records.reduce((s, r) => s + (r.income ? (r.investment / r.income) * 100 : 0), 0) /
-      records.length;
+    // 평균 지출율 / 투자율 — 수입이 있는 날만 분모로 삼는다
+    const earning = records.filter((r) => r.income > 0);
+    const avgExpense = earning.length
+      ? earning.reduce((s, r) => s + (totalExpenseOf(r) / r.income) * 100, 0) / earning.length
+      : 0;
+    const avgInvest = earning.length
+      ? earning.reduce((s, r) => s + (r.investment / r.income) * 100, 0) / earning.length
+      : 0;
 
-    // 지출은 통합 기록(expense)과 고정/변동으로 나눠 저장하던 과거 기록이 섞여 있다.
-    // 과거 기록의 구분은 살려서 보여주고, 새 기록은 '지출' 한 조각으로 합친다.
-    const expense = records.reduce((s, r) => s + (r.expense ?? 0), 0);
-    const fixed = records.reduce((s, r) => s + r.fixedExpense, 0);
-    const variable = records.reduce((s, r) => s + r.variableExpense, 0);
-    const invest = records.reduce((s, r) => s + r.investment, 0);
-    const save = records.reduce((s, r) => s + r.saving, 0);
-
-    // 자산 성장률도 수입/지출 기록에서 파생 (대시보드 그래프와 동일한 소스)
     const series = buildAssetSeries(records, initialAsset, initialLiability);
     const first = series[0];
     const last = series[series.length - 1];
+
     let growth = 0;
     if (first && last && series.length >= 2) {
       // 첫 기록 "직전"의 순자산을 기준선으로 삼아야 첫날 저축분이 성장에 포함된다
@@ -42,13 +44,53 @@ export function StatsPage() {
       growth = base !== 0 ? ((last.netWorth - base) / Math.abs(base)) * 100 : 0;
     }
 
-    // 누적 투자 원금 / 수익 (대시보드와 같은 소스)
     const totalInvested = last?.investedPrincipal ?? 0;
     const totalGain = last?.investmentGain ?? 0;
-    // 투자 수익률 = 누적 수익 / 누적 원금
     const gainRate = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
 
-    return { avgSaving, avgInvest, expense, fixed, variable, invest, save, growth, totalInvested, totalGain, gainRate };
+    // 통장잔액 = 초기자산 + 누적 현금저축 (수입/지출 모달의 '실제 통장잔액'과 같은 정의)
+    const cash = initialAsset + (last?.cashSaving ?? 0);
+    const investmentValue = totalInvested + totalGain;
+    const liabilities = last?.liabilities ?? Math.max(0, initialLiability);
+
+    // 자산 구성 추이 — 현금 + 투자 = 총자산
+    const breakdown = series.map((p) => ({
+      x: p.date.slice(5),
+      현금: initialAsset + p.cashSaving,
+      투자: p.investedPrincipal + p.investmentGain,
+      부채: p.liabilities,
+    }));
+
+    // 월별 수입/지출/투자 집계
+    const byMonth = new Map<string, { 수입: number; 지출: number; 투자: number }>();
+    for (const r of records) {
+      const key = r.date.slice(0, 7);
+      const m = byMonth.get(key) ?? { 수입: 0, 지출: 0, 투자: 0 };
+      m.수입 += r.income;
+      m.지출 += totalExpenseOf(r);
+      m.투자 += r.investment;
+      byMonth.set(key, m);
+    }
+    const monthly = [...byMonth.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-12)
+      .map(([key, m]) => ({ x: formatMonth(key).replace('년 ', '.').replace('월', ''), ...m }));
+
+    return {
+      avgExpense,
+      avgInvest,
+      growth,
+      totalInvested,
+      totalGain,
+      gainRate,
+      totalAssets: last?.totalAssets ?? initialAsset,
+      netWorth: last?.netWorth ?? initialAsset - Math.max(0, initialLiability),
+      cash,
+      investmentValue,
+      liabilities,
+      breakdown,
+      monthly,
+    };
   }, [records, initialAsset, initialLiability]);
 
   if (!stats) {
@@ -64,30 +106,65 @@ export function StatsPage() {
   }
 
   const composition = [
-    { name: '지출', value: stats.expense },
-    // 고정/변동은 예전 방식으로 기록한 데이터가 있을 때만 조각으로 나타난다
-    { name: '고정지출', value: stats.fixed },
-    { name: '변동지출', value: stats.variable },
-    { name: '투자', value: stats.invest },
-    { name: '저축', value: stats.save },
+    { name: '현금', value: Math.max(0, stats.cash) },
+    { name: '투자', value: Math.max(0, stats.investmentValue) },
+    { name: '부채', value: Math.max(0, stats.liabilities) },
   ].filter((d) => d.value > 0);
+
+  /** 요약 통계 한 줄 — 라벨은 작게, 숫자는 크게 */
+  const SummaryRow = ({
+    label,
+    value,
+    tone = 'ink',
+    hint,
+  }: {
+    label: string;
+    value: string;
+    tone?: 'ink' | 'accent' | 'negative' | 'positive';
+    hint?: string;
+  }) => (
+    <div className="flex items-baseline justify-between gap-3 py-2 border-b border-line/[0.06] last:border-0">
+      <div className="min-w-0">
+        <div className="text-xs text-ink-soft">{label}</div>
+        {hint && <div className="text-[10px] text-ink-faint leading-tight">{hint}</div>}
+      </div>
+      <div
+        className={cn(
+          'text-base sm:text-lg font-bold tabular tracking-tight shrink-0',
+          tone === 'accent'
+            ? 'text-accent'
+            : tone === 'negative'
+              ? 'text-negative'
+              : tone === 'positive'
+                ? 'text-positive'
+                : 'text-ink',
+        )}
+      >
+        {value}
+      </div>
+    </div>
+  );
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 지표 카드 — 좁은 화면에서도 4개를 한 줄로 유지 */}
+      <div className="grid grid-cols-4 gap-2 sm:gap-3">
         <StatCard
-          label="평균 저축률"
-          value={formatPercent(stats.avgSaving)}
-          icon={<PiggyBank size={16} />}
-          accent="green"
+          compact
+          label="평균 지출율"
+          value={formatPercent(stats.avgExpense)}
+          icon={<Receipt size={16} />}
+          accent={stats.avgExpense >= 70 ? 'red' : 'green'}
         />
         <StatCard
+          compact
           label="평균 투자율"
           value={formatPercent(stats.avgInvest)}
           icon={<Percent size={16} />}
           accent="blue"
         />
         <StatCard
+          compact
           label="자산 성장률"
           value={formatPercent(stats.growth)}
           deltaType={stats.growth >= 0 ? 'up' : 'down'}
@@ -95,83 +172,108 @@ export function StatsPage() {
           accent="gold"
         />
         <StatCard
-          label="누적 투자 원금"
-          value={formatShort(stats.totalInvested, currency)}
-          delta={
-            stats.totalGain !== 0
-              ? `수익 ${stats.totalGain >= 0 ? '+' : ''}${formatShort(stats.totalGain, currency)} (${formatPercent(stats.gainRate)})`
-              : undefined
-          }
+          compact
+          label="누적 투자 수익금"
+          value={`${stats.totalGain > 0 ? '+' : ''}${formatShort(stats.totalGain, currency)}`}
+          delta={stats.totalInvested > 0 ? `원금 대비 ${formatPercent(stats.gainRate)}` : undefined}
           deltaType={stats.totalGain >= 0 ? 'up' : 'down'}
           icon={<TrendingUp size={16} />}
-          accent="blue"
+          accent={stats.totalGain >= 0 ? 'green' : 'red'}
         />
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-4">
-        {composition.length > 0 ? (
+      {/* 2단 레이아웃 — 1024px 미만에서 1단으로 접힌다 */}
+      <div className="grid lg:grid-cols-3 gap-4 items-start">
+        {/* 좌측: 그래프 */}
+        <div className="lg:col-span-2 space-y-4">
           <Card>
-            <SectionTitle>현금 흐름 구성</SectionTitle>
-            <CompositionPie data={composition} currency={currency} />
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {composition.map((d, i) => (
-                <div key={d.name} className="flex items-center gap-2 text-sm">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full"
-                    style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
-                  />
-                  <span className="text-ink-soft">{d.name}</span>
-                  <span className="ml-auto tabular font-medium">
-                    {formatMoney(d.value, currency)}
-                  </span>
+            <SectionTitle>자산 추이</SectionTitle>
+            <AssetBreakdownChart data={stats.breakdown} currency={currency} />
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 mt-3 text-xs">
+              {(
+                [
+                  ['bg-positive', '현금'],
+                  ['bg-accent', '투자'],
+                  ['bg-negative', '부채'],
+                ] as const
+              ).map(([color, name]) => (
+                <div key={name} className="flex items-center gap-1.5">
+                  <span className={cn('w-2 h-2 rounded-full', color)} />
+                  <span className="text-ink-soft">{name}</span>
                 </div>
               ))}
             </div>
           </Card>
-        ) : (
-          <Card>
-            <SectionTitle>현금 흐름 구성</SectionTitle>
-            <p className="text-sm text-ink-faint py-8 text-center">
-              수입/지출 데이터가 없습니다.
-            </p>
-          </Card>
-        )}
 
-        <Card>
-          <SectionTitle>인사이트</SectionTitle>
-          <ul className="space-y-3 text-sm text-ink-soft">
-            <li className="flex gap-2">
-              <span className="text-positive font-semibold">·</span>
-              평균 저축률이{' '}
-              <span className="font-semibold text-ink">{formatPercent(stats.avgSaving)}</span>
-              입니다.
-              {stats.avgSaving >= 50
-                ? ' FIRE 궤도에 훌륭하게 올라있어요.'
-                : stats.avgSaving >= 30
-                  ? ' 건강한 수준이에요. 조금 더 끌어올려봐요.'
-                  : ' 지출을 점검해 저축률을 높이면 달성 시점이 크게 당겨집니다.'}
-            </li>
-            <li className="flex gap-2">
-              <span className="text-accent font-semibold">·</span>
-              고정지출{' '}
-              <span className="font-semibold text-ink">{formatMoney(stats.fixed, currency)}</span>,
-              변동지출{' '}
-              <span className="font-semibold text-ink">
-                {formatMoney(stats.variable, currency)}
-              </span>
-              .
-              {stats.variable > stats.fixed
-                ? ' 변동지출 비중이 높아 절약 여지가 큽니다.'
-                : ' 고정지출 관리가 핵심입니다.'}
-            </li>
-            <li className="flex gap-2">
-              <span className="text-gold font-semibold">·</span>
-              기록된 기간 동안 순자산이{' '}
-              <span className="font-semibold text-ink">{formatPercent(stats.growth)}</span>{' '}
-              변화했습니다.
-            </li>
-          </ul>
-        </Card>
+          <Card>
+            <SectionTitle
+              right={<span className="text-xs text-ink-faint">최근 {stats.monthly.length}개월</span>}
+            >
+              월별 수입 · 지출
+            </SectionTitle>
+            <BudgetBarChart data={stats.monthly} currency={currency} />
+          </Card>
+        </div>
+
+        {/* 우측: 요약 + 구성 */}
+        <div className="space-y-4">
+          <Card>
+            <SectionTitle>요약</SectionTitle>
+            <div>
+              <SummaryRow
+                label="총 자산"
+                value={formatMoney(stats.totalAssets, currency)}
+                hint={`현금 ${formatShort(stats.cash, currency)} + 투자 ${formatShort(stats.investmentValue, currency)}`}
+              />
+              <SummaryRow
+                label="총 투자금"
+                value={formatMoney(stats.totalInvested, currency)}
+                tone="accent"
+                hint={
+                  stats.totalGain !== 0
+                    ? `수익 ${stats.totalGain > 0 ? '+' : ''}${formatShort(stats.totalGain, currency)}`
+                    : undefined
+                }
+              />
+              <SummaryRow
+                label="총 부채"
+                value={formatMoney(stats.liabilities, currency)}
+                tone={stats.liabilities > 0 ? 'negative' : 'ink'}
+              />
+              <SummaryRow
+                label="순자산"
+                value={formatMoney(stats.netWorth, currency)}
+                tone={stats.netWorth >= 0 ? 'positive' : 'negative'}
+                hint="총 자산 − 총 부채"
+              />
+            </div>
+          </Card>
+
+          <Card>
+            <SectionTitle>자산 구성</SectionTitle>
+            {composition.length > 0 ? (
+              <>
+                <CompositionPie data={composition} currency={currency} />
+                <div className="space-y-1.5 mt-3">
+                  {composition.map((d, i) => (
+                    <div key={d.name} className="flex items-center gap-2 text-xs">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                      />
+                      <span className="text-ink-soft">{d.name}</span>
+                      <span className="ml-auto tabular font-semibold text-ink">
+                        {formatMoney(d.value, currency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-ink-faint py-8 text-center">표시할 자산이 없습니다.</p>
+            )}
+          </Card>
+        </div>
       </div>
     </div>
   );
