@@ -156,6 +156,20 @@ export function estimateFireDate(
   return null;
 }
 
+/**
+ * 누적 지출율(%) = 누적 지출 / 누적 수입 × 100.
+ *
+ * 반드시 합계끼리 나눠야 한다. 기록별 (지출/수입) 비율을 평균 내면 안 된다 —
+ * 이 앱은 수입과 지출을 서로 다른 날짜에 적으므로 수입이 있는 날의 지출은 0이고,
+ * 지출만 있는 날은 수입이 0이라 분모에서 빠진다. 그래서 예전 계산은 항상 0%가 나왔다.
+ */
+export function expenseRatio(records: DailyRecord[]): number {
+  const income = records.reduce((s, r) => s + r.income, 0);
+  if (income <= 0) return 0;
+  const expense = records.reduce((s, r) => s + totalExpenseOf(r), 0);
+  return (expense / income) * 100;
+}
+
 /** 저축률(%) = (투자 + 저축) / 수입 */
 export function savingRate(
   income: number,
