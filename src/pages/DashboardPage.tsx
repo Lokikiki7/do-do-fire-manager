@@ -1,11 +1,11 @@
 /**
  * 대시보드 — 앱의 첫 화면.
- * 총자산/순자산/월투자금/FIRE달성률/오늘의 변화 + 자산 성장 그래프 + 로드맵 미리보기.
+ * 총자산/순자산/총 투자 원금/투자수익금 + 자산 성장 그래프 + FIRE 달성률 + 로드맵 미리보기.
  *
  * 자산 성장 그래프는 "수입/지출" 기록에서 자동으로 파생된다.
  * (예전의 수동 "자산 기록" 입력은 수입/지출과 중복 + 지표와 값이 어긋나 제거)
  */
-import { Wallet, PiggyBank, TrendingUp, Flame, ArrowRight, Landmark } from 'lucide-react';
+import { Wallet, PiggyBank, TrendingUp, Coins, ArrowRight } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useMetrics } from '@/hooks/useMetrics';
 import { StatCard, ProgressRing } from '@/components/ui/Stat';
@@ -59,27 +59,16 @@ export function DashboardPage() {
           accent="blue"
           delay={0.1}
         />
-        {m.liabilities > 0 ? (
-          <StatCard
-            label="남은 부채"
-            value={formatMoney(m.liabilities, currency)}
-            delta={m.debtPaid > 0 ? `${formatShort(m.debtPaid, currency)} 상환` : undefined}
-            deltaType="up"
-            icon={<Landmark size={16} />}
-            accent="red"
-            delay={0.15}
-          />
-        ) : (
-          <StatCard
-            label="최근 변화"
-            value={`${m.dayChange >= 0 ? '+' : ''}${formatShort(m.dayChange, currency)}`}
-            delta={formatPercent(m.dayChangePct)}
-            deltaType={m.dayChange >= 0 ? 'up' : 'down'}
-            icon={<Flame size={16} />}
-            accent={m.dayChange >= 0 ? 'green' : 'red'}
-            delay={0.15}
-          />
-        )}
+        {/* 투자수익금 = 투자자산 평가액 − 투자 원금 = 투자로 실제로 번 돈 */}
+        <StatCard
+          label="투자수익금"
+          value={`${m.totalGain > 0 ? '+' : ''}${formatMoney(m.totalGain, currency)}`}
+          delta={m.totalInvested > 0 ? `평가액 ${formatShort(m.investmentValue, currency)} · ${formatPercent(m.gainRate)}` : undefined}
+          deltaType={m.totalGain >= 0 ? 'up' : 'down'}
+          icon={<Coins size={16} />}
+          accent={m.totalGain >= 0 ? 'green' : 'red'}
+          delay={0.15}
+        />
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
