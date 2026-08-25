@@ -389,12 +389,22 @@ export function BudgetPage() {
                 </div>
               )}
 
-              {/* 총누적금액이 어떻게 나오는지 산식을 그대로 적어둔다 */}
+              {/* 숫자가 어디서 나왔는지 항목별로 그대로 적어둔다 (검산 가능하도록) */}
               <div className="mt-2 space-y-1 text-[10px] text-ink-faint tabular leading-relaxed">
+                <div>
+                  누적금액 = 초기자산{' '}
+                  <span className="font-semibold text-ink-soft">{formatMoney(data.settings.initialAsset, currency)}</span>
+                  {' + 수입 '}
+                  <span className="font-semibold text-positive">{formatMoney(cumulative.totalIncome, currency)}</span>
+                  {' − 지출 '}
+                  <span className="font-semibold text-negative">{formatMoney(cumulative.totalExpense, currency)}</span>
+                  {' − 부채상환 '}
+                  <span className="font-semibold text-negative">{formatMoney(cumulative.totalDebtPayment, currency)}</span>
+                </div>
                 {hasDebt && (
                   <div>
-                    소계 = 누적금액 − 부채{' '}
-                    <span className="font-semibold text-ink-soft">{formatMoney(cumulative.liabilities, currency)}</span>
+                    소계 = 누적금액 − 남은부채{' '}
+                    <span className="font-semibold text-negative">{formatMoney(cumulative.liabilities, currency)}</span>
                   </div>
                 )}
                 {hasInvestment && (
@@ -402,13 +412,13 @@ export function BudgetPage() {
                     <div>
                       총누적금액 = {hasDebt ? '소계' : '누적금액'}{' '}
                       <span className="font-semibold text-ink-soft">{formatMoney(cumulative.subtotal, currency)}</span>
-                      {' + 누적투자금 '}
-                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
                       {' + 누적투자수익 '}
                       <span className="font-semibold text-positive">{formatMoney(cumulative.investmentGain, currency)}</span>
                     </div>
                     <div>
-                      수익률은 누적투자금 전체에 붙고, 발생한 수익은 현금으로 들어옵니다 · 원금 대비{' '}
+                      누적투자금{' '}
+                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
+                      은 이미 누적금액에 포함돼 있어 다시 더하지 않습니다 · 원금 대비 수익률{' '}
                       <span className="font-semibold text-ink-soft">{formatPercent(cumulative.averageReturnRate)}</span>
                     </div>
                   </>

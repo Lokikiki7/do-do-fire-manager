@@ -284,15 +284,27 @@ export function buildAssetSeries(
 
 /** 특정 시점까지의 누적 집계 (수입/지출 페이지 모달 · 대시보드 · 통계 공용) */
 export interface CumulativeTotals {
-  /** 누적금액 (부채 제외) = cash + investmentValue */
+  /** 총자산 (부채 차감 전) = cash + investmentGain */
   totalAssets: number;
-  /** 현금성 자산 = 초기자산 + 누적 현금저축 (투자로 빠져나가지 않고 남은 돈) */
+  /** 누적 수입 */
+  totalIncome: number;
+  /** 누적 지출 (통합 지출 + 과거 고정/변동) */
+  totalExpense: number;
+  /** 누적 부채상환액 */
+  totalDebtPayment: number;
+  /**
+   * 누적금액 = 초기자산 + 누적수입 − 누적지출 − 누적부채상환.
+   *
+   * 투자금은 빼지 않는다. 투자에 넣은 돈도 내 돈이고, 여기서 차감하면
+   * 아래 누적투자금 카드와 합쳐 볼 때 같은 돈이 사라진 것처럼 보인다.
+   * 투자수익만 빠져 있고, 그건 investmentGain으로 따로 잡힌다.
+   */
   cash: number;
   /** 그 시점 남은 부채 */
   liabilities: number;
-  /** 소계 = cash − liabilities. 투자를 빼고 현금만 봤을 때의 순액 */
+  /** 소계 = cash − liabilities */
   subtotal: number;
-  /** 총 누적금액 = totalAssets − liabilities = subtotal + investmentValue */
+  /** 총 누적금액 = totalAssets − liabilities = subtotal + investmentGain */
   netWorth: number;
   /** 누적 투자 원금 (내가 넣은 돈) */
   investedPrincipal: number;
@@ -311,14 +323,15 @@ export interface CumulativeTotals {
 /**
  * 선택한 날짜까지의 누적 집계를 구한다 (해당 날짜 포함).
  *
- * 투자금은 누적금액에 "다시" 더하지 않는다.
- * 투자금 + 저축 = 순저축이므로(BudgetPage에서 순저축을 쪼개 저장한다)
- * 이미 수입 - 지출로 잡힌 돈을 또 더하면 이중계산이 된다.
- * 투자가 누적을 늘리는 경로는 오직 `투자금 × 수익률`뿐이고,
- * 원금은 현금 → 투자자산 이동이라 총액을 바꾸지 않는다.
+ * 화면에 나오는 세 숫자의 관계:
+ *   누적금액   = 초기자산 + 누적수입 − 누적지출 − 누적부채상환
+ *   소계       = 누적금액 − 남은부채
+ *   총누적금액 = 소계 + 누적투자수익
  *
- * 즉 대략 다음 항등식이 성립한다:
- *   totalAssets ≈ 초기자산 + investedPrincipal + cashSaving + investmentGain
+ * 누적투자금은 총누적금액에 더하지 않는다. 투자에 넣은 돈은 수입에서 나온
+ * 것이라 이미 누적금액 안에 있고, 다시 더하면 이중계산이 된다.
+ * 투자가 총액을 늘리는 경로는 수익뿐이다.
+ * (누적투자금 카드는 "그 돈 중 얼마가 투자에 들어가 있는지"를 보여주는 내역이다)
  *
  * buildAssetSeries를 그대로 재사용하므로 대시보드/통계와 숫자가 어긋나지 않는다.
  */
@@ -341,16 +354,22 @@ export function cumulativeUpTo(
   const investedPrincipal = last?.investedPrincipal ?? 0;
   const investmentGain = last?.investmentGain ?? 0;
 
-  // 투자자산 평가액 = 누적 원금 × (1 + 평균 수익률)
-  //                = 누적 원금 + 누적 수익   ← 평균이 투자금액 가중평균이라 같은 식이다
-  // 투자금과 수익을 합친 금액. 수익은 이미 현금으로 빠져나왔지만,
-  // "투자로 만들어낸 몫"을 한 덩어리로 볼 때 쓴다.
+  // 투자금과 수익을 합친 금액 (참고용 — 총누적금액 계산에는 쓰지 않는다)
   const investmentValue = investedPrincipal + investmentGain;
-  // 투자로 만든 몫을 뺀 나머지 = 저축으로 모은 현금. 초기자산도 여기 포함된다.
-  const cash = totalAssets - investmentValue;
+
+  // 누적금액 = 초기자산 + 수입 − 지출 − 부채상환.
+  // 투자금은 차감하지 않는다 — 투자에 넣은 돈도 내 돈이고, 여기서 빼면
+  // 누적투자금 카드와 나란히 볼 때 같은 돈이 사라진 것처럼 보인다.
+  const totalIncome = upTo.reduce((s, r) => s + r.income, 0);
+  const totalExpense = upTo.reduce((s, r) => s + totalExpenseOf(r), 0);
+  const totalDebtPayment = upTo.reduce((s, r) => s + r.debt, 0);
+  const cash = initialAsset + totalIncome - totalExpense - totalDebtPayment;
 
   return {
     totalAssets,
+    totalIncome,
+    totalExpense,
+    totalDebtPayment,
     cash,
     liabilities,
     subtotal: cash - liabilities,
