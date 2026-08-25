@@ -300,17 +300,21 @@ export interface CumulativeTotals {
    * 투자수익만 빠져 있고, 그건 investmentGain으로 따로 잡힌다.
    */
   cash: number;
-  /** 그 시점 남은 부채 */
+  /** 그 시점 남은 부채 (대시보드·통계용) */
   liabilities: number;
-  /** 소계 = cash − liabilities */
+  /** 소계 = cash − 누적부채상환 */
   subtotal: number;
-  /** 총 누적금액 = totalAssets − liabilities = subtotal + investmentGain */
+  /** 순자산 = totalAssets − 남은부채 (대시보드·통계용) */
   netWorth: number;
+  /** 실제 통장잔액 = 누적금액 − 누적투자금 (투자에 묶이지 않고 손에 남은 현금) */
+  bankBalance: number;
+  /** 이번 달에 발생한 투자수익 (선택한 날짜가 속한 달, 그 날짜까지) */
+  monthlyGain: number;
   /** 누적 투자 원금 (내가 넣은 돈) */
   investedPrincipal: number;
   /** 누적 투자 수익 (원금 × 수익률) */
   investmentGain: number;
-  /** 투자 평가액 = 원금 + 수익 */
+  /** 투자자산 총평가액 = 누적투자금 + 누적투자수익 */
   investmentValue: number;
   /** 누적 현금성 저축 (순저축 중 투자로 가지 않은 몫) */
   cashSaving: number;
@@ -354,7 +358,7 @@ export function cumulativeUpTo(
   const investedPrincipal = last?.investedPrincipal ?? 0;
   const investmentGain = last?.investmentGain ?? 0;
 
-  // 투자금과 수익을 합친 금액 (참고용 — 총누적금액 계산에는 쓰지 않는다)
+  // 투자자산 총평가액 = 누적투자금 + 누적투자수익
   const investmentValue = investedPrincipal + investmentGain;
 
   // 누적금액 = 초기자산 + 수입 − 지출 − 부채상환.
@@ -365,6 +369,16 @@ export function cumulativeUpTo(
   const totalDebtPayment = upTo.reduce((s, r) => s + r.debt, 0);
   const cash = initialAsset + totalIncome - totalExpense - totalDebtPayment;
 
+  // 이번 달 수익 — 누적 수익을 기록별로 차분해 해당 월치만 더한다
+  const monthPrefix = cutoff.slice(0, 7);
+  let monthlyGain = 0;
+  let prevGain = 0;
+  for (const p of series) {
+    const perRecordGain = p.investmentGain - prevGain;
+    prevGain = p.investmentGain;
+    if (normalizeDate(p.date).startsWith(monthPrefix)) monthlyGain += perRecordGain;
+  }
+
   return {
     totalAssets,
     totalIncome,
@@ -372,8 +386,13 @@ export function cumulativeUpTo(
     totalDebtPayment,
     cash,
     liabilities,
-    subtotal: cash - liabilities,
+    // 요청 사양: 부채 카드가 "누적 부채상환액"이므로 소계도 그 값을 뺀다.
+    // 누적금액에서 이미 상환액을 뺐기 때문에 소계에서는 두 번 빠진다.
+    subtotal: cash - totalDebtPayment,
     netWorth: totalAssets - liabilities,
+    // 투자에 묶이지 않고 실제로 손에 남은 현금
+    bankBalance: cash - investedPrincipal,
+    monthlyGain,
     investedPrincipal,
     investmentGain,
     investmentValue,

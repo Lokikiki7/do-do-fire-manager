@@ -6,7 +6,7 @@
  *  - "오늘 기록하기" 원탭 버튼
  * 버그 수정: 복제 버튼이 값을 복사하지 않던 문제 → 원본 값을 프리필
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Trash2, Wallet, Pencil, Copy, Plus, ChevronDown, Info } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
@@ -45,6 +45,49 @@ function toForm(r: DailyRecord): FormState {
 /** 폼 입력값 기준 순저축 (수입 − 지출 − 부채상환) */
 function formNetSaving(f: FormState): number {
   return parseAmount(f.income) - parseAmount(f.expense) - parseAmount(f.debt);
+}
+
+type BoxTone = 'default' | 'negative' | 'positive' | 'accent';
+const BOX_TONE: Record<BoxTone, string> = {
+  default: 'text-ink',
+  negative: 'text-negative',
+  positive: 'text-positive',
+  accent: 'text-accent',
+};
+
+/** 누적 섹션의 지표 박스 — 라벨 + 금액 한 칸 */
+function StatBox({
+  label,
+  value,
+  tone = 'default',
+  surface = false,
+  highlight = false,
+}: {
+  label: ReactNode;
+  value: string;
+  tone?: BoxTone;
+  /** 색이 깔린 묶음 안에 놓일 때 (카드 배경을 surface로) */
+  surface?: boolean;
+  /** 그 묶음의 결론값 강조 */
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'p-2.5 rounded-lg border',
+        highlight
+          ? 'bg-accent/10 border-accent/20'
+          : surface
+            ? 'bg-surface border-line/[0.06]'
+            : 'bg-canvas dark:bg-elevated border-line/[0.06]',
+      )}
+    >
+      <div className="text-[10px] text-ink-faint mb-1 leading-tight">{label}</div>
+      <div className={cn('text-xs sm:text-sm font-semibold tabular break-all', BOX_TONE[tone])}>
+        {value}
+      </div>
+    </div>
+  );
 }
 
 export function BudgetPage() {
@@ -108,7 +151,7 @@ export function BudgetPage() {
   );
 
   // 부채가 없으면 부채·소계 카드를, 투자 기록이 없으면 투자 카드 묶음을 숨긴다
-  const hasDebt = cumulative.liabilities > 0;
+  const hasDebt = cumulative.totalDebtPayment > 0;
   const hasInvestment = cumulative.investedPrincipal !== 0;
 
   const submit = () => {
@@ -306,7 +349,7 @@ export function BudgetPage() {
             </section>
 
             {/* ── 누적 섹션 ── 과거 기록을 전부 합친 결과. 입력값이 즉시 반영된다.
-                현금 기준(상단)과 투자 포함(하단)을 나눠 보여준다 */}
+                현금 기준(상단)과 투자(하단)를 분리해 보여준다 */}
             <section className="pt-4 border-t border-line/10">
               <div className="flex items-baseline justify-between mb-3">
                 <h4 className="text-sm font-semibold text-ink">{formatDateKor(modalDate)} 기준 누적</h4>
@@ -315,76 +358,67 @@ export function BudgetPage() {
                 </span>
               </div>
 
-              {/* 현금 기준 — 투자자산을 빼고 현금만 본 금액 */}
+              {/* 현금 기준 */}
               <div className="rounded-xl border border-line/[0.08] p-2.5">
                 <div className="text-[10px] font-semibold text-ink-faint mb-2 uppercase tracking-wide">현금 기준</div>
                 <div className={cn('grid gap-2', hasDebt ? 'grid-cols-3' : 'grid-cols-1')}>
-                  <div className="p-2.5 rounded-lg bg-canvas dark:bg-elevated border border-line/[0.06]">
-                    <div className="text-[10px] text-ink-faint mb-1 leading-tight">
-                      누적금액 <span className="opacity-70">(투자금·부채 제외)</span>
-                    </div>
-                    <div className="text-xs sm:text-sm font-semibold text-ink tabular break-all">
-                      {formatMoney(cumulative.cash, currency)}
-                    </div>
-                  </div>
+                  <StatBox
+                    label={<>누적금액 <span className="opacity-70">(투자금·부채 제외)</span></>}
+                    value={formatMoney(cumulative.cash, currency)}
+                  />
                   {hasDebt && (
                     <>
-                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-elevated border border-line/[0.06]">
-                        <div className="text-[10px] text-ink-faint mb-1 leading-tight">부채</div>
-                        <div className="text-xs sm:text-sm font-semibold text-negative tabular break-all">
-                          {formatMoney(cumulative.liabilities, currency)}
-                        </div>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-elevated border border-line/[0.06]">
-                        <div className="text-[10px] text-ink-faint mb-1 leading-tight">소계</div>
-                        <div
-                          className={cn(
-                            'text-xs sm:text-sm font-semibold tabular break-all',
-                            cumulative.subtotal >= 0 ? 'text-ink' : 'text-negative',
-                          )}
-                        >
-                          {formatMoney(cumulative.subtotal, currency)}
-                        </div>
-                      </div>
+                      <StatBox label="부채" value={formatMoney(cumulative.totalDebtPayment, currency)} tone="negative" />
+                      <StatBox
+                        label="소계"
+                        value={formatMoney(cumulative.subtotal, currency)}
+                        tone={cumulative.subtotal >= 0 ? 'default' : 'negative'}
+                      />
                     </>
                   )}
                 </div>
               </div>
 
-              {/* 투자 포함 — 투자자산 평가액을 얹은 최종 금액 */}
+              {/* 투자 — 두 줄로 나눠 표시 */}
               {hasInvestment && (
-                <div className="mt-2 rounded-xl border border-positive/20 bg-positive/[0.04] p-2.5">
-                  <div className="text-[10px] font-semibold text-positive/80 mb-2 uppercase tracking-wide">투자 포함</div>
+                <div className="mt-2 rounded-xl border border-positive/20 bg-positive/[0.04] p-2.5 space-y-2">
+                  <div className="text-[10px] font-semibold text-positive/80 uppercase tracking-wide">투자</div>
+
                   <div className="grid grid-cols-3 gap-2">
-                    <div className="p-2.5 rounded-lg bg-surface border border-line/[0.06]">
-                      <div className="text-[10px] text-ink-faint mb-1 leading-tight">누적투자금</div>
-                      <div className="text-xs sm:text-sm font-semibold text-ink-soft tabular break-all">
-                        {formatMoney(cumulative.investedPrincipal, currency)}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-surface border border-line/[0.06]">
-                      <div className="text-[10px] text-ink-faint mb-1 leading-tight">누적투자수익</div>
-                      <div
-                        className={cn(
-                          'text-xs sm:text-sm font-semibold tabular break-all',
-                          cumulative.investmentGain >= 0 ? 'text-positive' : 'text-negative',
-                        )}
-                      >
-                        {cumulative.investmentGain > 0 ? '+' : ''}
-                        {formatMoney(cumulative.investmentGain, currency)}
-                      </div>
-                    </div>
-                    <div className="p-2.5 rounded-lg bg-accent/10 border border-accent/20">
-                      <div className="text-[10px] text-ink-faint mb-1 leading-tight">총누적금액</div>
-                      <div
-                        className={cn(
-                          'text-xs sm:text-sm font-semibold tabular break-all',
-                          cumulative.netWorth >= 0 ? 'text-accent' : 'text-negative',
-                        )}
-                      >
-                        {formatMoney(cumulative.netWorth, currency)}
-                      </div>
-                    </div>
+                    <StatBox label="누적투자금" value={formatMoney(cumulative.investedPrincipal, currency)} surface />
+                    <StatBox
+                      label="누적투자수익"
+                      value={`${cumulative.investmentGain > 0 ? '+' : ''}${formatMoney(cumulative.investmentGain, currency)}`}
+                      tone={cumulative.investmentGain >= 0 ? 'positive' : 'negative'}
+                      surface
+                    />
+                    <StatBox
+                      label="투자자산 총평가액"
+                      value={formatMoney(cumulative.investmentValue, currency)}
+                      tone="accent"
+                      surface
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <StatBox
+                      label="실제 통장잔액"
+                      value={formatMoney(cumulative.bankBalance, currency)}
+                      tone={cumulative.bankBalance >= 0 ? 'default' : 'negative'}
+                      surface
+                    />
+                    <StatBox
+                      label="이달투자수익"
+                      value={`${cumulative.monthlyGain > 0 ? '+' : ''}${formatMoney(cumulative.monthlyGain, currency)}`}
+                      tone={cumulative.monthlyGain >= 0 ? 'positive' : 'negative'}
+                      surface
+                    />
+                    <StatBox
+                      label="총순자산"
+                      value={formatMoney(cumulative.totalAssets, currency)}
+                      tone={cumulative.totalAssets >= 0 ? 'accent' : 'negative'}
+                      highlight
+                    />
                   </div>
                 </div>
               )}
@@ -401,24 +435,15 @@ export function BudgetPage() {
                   {' − 부채상환 '}
                   <span className="font-semibold text-negative">{formatMoney(cumulative.totalDebtPayment, currency)}</span>
                 </div>
-                {hasDebt && (
-                  <div>
-                    소계 = 누적금액 − 남은부채{' '}
-                    <span className="font-semibold text-negative">{formatMoney(cumulative.liabilities, currency)}</span>
-                  </div>
-                )}
                 {hasInvestment && (
                   <>
                     <div>
-                      총누적금액 = {hasDebt ? '소계' : '누적금액'}{' '}
-                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.subtotal, currency)}</span>
-                      {' + 누적투자수익 '}
-                      <span className="font-semibold text-positive">{formatMoney(cumulative.investmentGain, currency)}</span>
+                      실제 통장잔액 = 누적금액 − 누적투자금{' '}
+                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
+                      {' · 총순자산 = 통장잔액 + 투자자산 총평가액'}
                     </div>
                     <div>
-                      누적투자금{' '}
-                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
-                      은 이미 누적금액에 포함돼 있어 다시 더하지 않습니다 · 원금 대비 수익률{' '}
+                      수익률은 누적투자금 전체에 붙습니다 · 원금 대비 수익률{' '}
                       <span className="font-semibold text-ink-soft">{formatPercent(cumulative.averageReturnRate)}</span>
                     </div>
                   </>
