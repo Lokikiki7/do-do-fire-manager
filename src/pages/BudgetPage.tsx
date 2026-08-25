@@ -107,6 +107,10 @@ export function BudgetPage() {
     data.settings.initialLiability,
   );
 
+  // 부채가 없으면 부채·소계 카드를, 투자 기록이 없으면 투자 카드 묶음을 숨긴다
+  const hasDebt = cumulative.liabilities > 0;
+  const hasInvestment = cumulative.investedPrincipal !== 0;
+
   const submit = () => {
     if (!modalDate) return;
     upsertRecord({ ...draftRecord, id: existing?.id || uid(), date: modalDate });
@@ -301,7 +305,8 @@ export function BudgetPage() {
               )}
             </section>
 
-            {/* ── 누적 섹션 ── 과거 기록을 전부 합친 결과. 입력값이 즉시 반영된다 */}
+            {/* ── 누적 섹션 ── 과거 기록을 전부 합친 결과. 입력값이 즉시 반영된다.
+                현금 기준(상단)과 투자 포함(하단)을 나눠 보여준다 */}
             <section className="pt-4 border-t border-line/10">
               <div className="flex items-baseline justify-between mb-3">
                 <h4 className="text-sm font-semibold text-ink">{formatDateKor(modalDate)} 기준 누적</h4>
@@ -310,68 +315,104 @@ export function BudgetPage() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
-                <div className="p-2.5 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.06]">
-                  <div className="text-[10px] text-ink-faint mb-1 leading-tight">
-                    누적금액 <span className="opacity-70">(부채 제외)</span>
+              {/* 현금 기준 — 투자자산을 빼고 현금만 본 금액 */}
+              <div className="rounded-xl border border-line/[0.08] p-2.5">
+                <div className="text-[10px] font-semibold text-ink-faint mb-2 uppercase tracking-wide">현금 기준</div>
+                <div className={cn('grid gap-2', hasDebt ? 'grid-cols-3' : 'grid-cols-1')}>
+                  <div className="p-2.5 rounded-lg bg-canvas dark:bg-elevated border border-line/[0.06]">
+                    <div className="text-[10px] text-ink-faint mb-1 leading-tight">
+                      누적금액 <span className="opacity-70">(투자금·부채 제외)</span>
+                    </div>
+                    <div className="text-xs sm:text-sm font-semibold text-ink tabular break-all">
+                      {formatMoney(cumulative.cash, currency)}
+                    </div>
                   </div>
-                  <div className="text-xs sm:text-sm font-semibold text-ink tabular break-all">
-                    {formatMoney(cumulative.totalAssets, currency)}
-                  </div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.06]">
-                  <div className="text-[10px] text-ink-faint mb-1 leading-tight">부채</div>
-                  <div
-                    className={cn(
-                      'text-xs sm:text-sm font-semibold tabular break-all',
-                      cumulative.liabilities > 0 ? 'text-negative' : 'text-ink-faint',
-                    )}
-                  >
-                    {formatMoney(cumulative.liabilities, currency)}
-                  </div>
-                </div>
-                <div className="p-2.5 rounded-xl bg-accent/10 border border-accent/20">
-                  <div className="text-[10px] text-ink-faint mb-1 leading-tight">총 누적금액</div>
-                  <div
-                    className={cn(
-                      'text-xs sm:text-sm font-semibold tabular break-all',
-                      cumulative.netWorth >= 0 ? 'text-accent' : 'text-negative',
-                    )}
-                  >
-                    {formatMoney(cumulative.netWorth, currency)}
-                  </div>
+                  {hasDebt && (
+                    <>
+                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-elevated border border-line/[0.06]">
+                        <div className="text-[10px] text-ink-faint mb-1 leading-tight">부채</div>
+                        <div className="text-xs sm:text-sm font-semibold text-negative tabular break-all">
+                          {formatMoney(cumulative.liabilities, currency)}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-canvas dark:bg-elevated border border-line/[0.06]">
+                        <div className="text-[10px] text-ink-faint mb-1 leading-tight">소계</div>
+                        <div
+                          className={cn(
+                            'text-xs sm:text-sm font-semibold tabular break-all',
+                            cumulative.subtotal >= 0 ? 'text-ink' : 'text-negative',
+                          )}
+                        >
+                          {formatMoney(cumulative.subtotal, currency)}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* 누적금액이 현금과 투자자산으로 어떻게 쪼개지는지 보여준다.
-                  투자 원금은 현금 → 투자자산 이동이라 누적금액을 늘리지 않고, 수익만 반영된다 */}
+              {/* 투자 포함 — 투자자산 평가액을 얹은 최종 금액 */}
+              {hasInvestment && (
+                <div className="mt-2 rounded-xl border border-positive/20 bg-positive/[0.04] p-2.5">
+                  <div className="text-[10px] font-semibold text-positive/80 mb-2 uppercase tracking-wide">투자 포함</div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="p-2.5 rounded-lg bg-surface border border-line/[0.06]">
+                      <div className="text-[10px] text-ink-faint mb-1 leading-tight">누적투자금</div>
+                      <div className="text-xs sm:text-sm font-semibold text-ink-soft tabular break-all">
+                        {formatMoney(cumulative.investedPrincipal, currency)}
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-surface border border-line/[0.06]">
+                      <div className="text-[10px] text-ink-faint mb-1 leading-tight">누적투자수익</div>
+                      <div
+                        className={cn(
+                          'text-xs sm:text-sm font-semibold tabular break-all',
+                          cumulative.investmentGain >= 0 ? 'text-positive' : 'text-negative',
+                        )}
+                      >
+                        {cumulative.investmentGain > 0 ? '+' : ''}
+                        {formatMoney(cumulative.investmentGain, currency)}
+                      </div>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-accent/10 border border-accent/20">
+                      <div className="text-[10px] text-ink-faint mb-1 leading-tight">총누적금액</div>
+                      <div
+                        className={cn(
+                          'text-xs sm:text-sm font-semibold tabular break-all',
+                          cumulative.netWorth >= 0 ? 'text-accent' : 'text-negative',
+                        )}
+                      >
+                        {formatMoney(cumulative.netWorth, currency)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 총누적금액이 어떻게 나오는지 산식을 그대로 적어둔다 */}
               <div className="mt-2 space-y-1 text-[10px] text-ink-faint tabular leading-relaxed">
-                <div>
-                  누적금액 = 현금{' '}
-                  <span className="font-semibold text-ink-soft">{formatMoney(cumulative.cash, currency)}</span>
-                  {' + '}투자자산{' '}
-                  <span className="font-semibold text-accent">{formatMoney(cumulative.investmentValue, currency)}</span>
-                </div>
-                <div>
-                  투자 원금{' '}
-                  <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
-                  {' · 평균 수익률 '}
-                  <span className="font-semibold text-ink-soft">{formatPercent(cumulative.averageReturnRate)}</span>
-                  {' · 손익 '}
-                  <span
-                    className={cn(
-                      'font-semibold',
-                      cumulative.investmentGain >= 0 ? 'text-positive' : 'text-negative',
-                    )}
-                  >
-                    {cumulative.investmentGain > 0 ? '+' : ''}
-                    {formatMoney(cumulative.investmentGain, currency)}
-                  </span>
-                </div>
-                <div>
-                  총 누적금액 = 누적금액 − 부채{' '}
-                  <span className="font-semibold text-ink-soft">{formatMoney(cumulative.liabilities, currency)}</span>
-                </div>
+                {hasDebt && (
+                  <div>
+                    소계 = 누적금액 − 부채{' '}
+                    <span className="font-semibold text-ink-soft">{formatMoney(cumulative.liabilities, currency)}</span>
+                  </div>
+                )}
+                {hasInvestment && (
+                  <>
+                    <div>
+                      총누적금액 = {hasDebt ? '소계' : '누적금액'}{' '}
+                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.subtotal, currency)}</span>
+                      {' + 누적투자금 '}
+                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
+                      {' + 누적투자수익 '}
+                      <span className="font-semibold text-positive">{formatMoney(cumulative.investmentGain, currency)}</span>
+                    </div>
+                    <div>
+                      수익률은 누적투자금 전체에 붙고, 발생한 수익은 현금으로 들어옵니다 · 원금 대비{' '}
+                      <span className="font-semibold text-ink-soft">{formatPercent(cumulative.averageReturnRate)}</span>
+                    </div>
+                  </>
+                )}
               </div>
             </section>
 

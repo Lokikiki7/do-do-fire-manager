@@ -59,11 +59,11 @@ export function DashboardPage() {
           accent="blue"
           delay={0.1}
         />
-        {/* 투자수익금 = 투자자산 평가액 − 투자 원금 = 투자로 실제로 번 돈 */}
+        {/* 투자수익금 = 누적 투자금에 수익률이 붙어 현금으로 들어온 돈의 합계 */}
         <StatCard
           label="투자수익금"
           value={`${m.totalGain > 0 ? '+' : ''}${formatMoney(m.totalGain, currency)}`}
-          delta={m.totalInvested > 0 ? `평가액 ${formatShort(m.investmentValue, currency)} · ${formatPercent(m.gainRate)}` : undefined}
+          delta={m.totalInvested > 0 ? `원금 대비 ${formatPercent(m.gainRate)}` : undefined}
           deltaType={m.totalGain >= 0 ? 'up' : 'down'}
           icon={<Coins size={16} />}
           accent={m.totalGain >= 0 ? 'green' : 'red'}

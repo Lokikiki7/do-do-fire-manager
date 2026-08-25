@@ -244,20 +244,24 @@ export function buildAssetSeries(
   return sorted.map((r) => {
     // 실제로 부채를 줄이는 금액 (남은 부채 한도 내)
     const debtPaid = Math.min(Math.max(0, r.debt), liabilities);
-    // 투자자산을 헐어 현금화한 날(투자금 음수)에 수익을 매기는 건 의미가 없어 0으로 본다
-    const gain = Math.max(0, r.investment) * ((r.investmentReturnRate || 0) / 100);
     const netSaving = netSavingOf(r);
 
-    // 투자 원금은 "현금 → 투자자산" 이동이라 순자산을 늘리지 않지만,
-    // 얼마를 넣었는지는 따로 누적해서 보여준다 (수익과 원금을 구분하기 위함).
-    //
+    // 투자 원금은 투자자산에 그대로 쌓이고 빠져나가지 않는다.
+    // 수익률은 그날 넣은 돈이 아니라 "그 시점까지 쌓인 누적 투자금 전체"에 붙고,
+    // 발생한 수익은 곧바로 현금으로 빠져나온다.
+    //   예) 500만 투자 → 수익 50만, +300만 → 800만에 붙어 80만, +200만 → 1000만에 붙어 100만
+    //       누적 투자금 1,000만 / 누적 수익 230만
+    // 신규 투자금을 먼저 더한 뒤 수익을 매긴다 (그달 넣은 돈도 그달 수익을 받는다).
+    investedPrincipal += r.investment;
+    const gain = Math.max(0, investedPrincipal) * ((r.investmentReturnRate || 0) / 100);
+    investmentGain += gain;
+
     // 현금저축은 저장된 r.saving이 아니라 "순저축 − 투자금"으로 직접 구한다.
     // 그래야 기록에 어긋난 값이 들어 있어도 다음 항등식이 항상 성립한다:
     //   totalAssets = 초기자산 + investedPrincipal + cashSaving + investmentGain
-    investedPrincipal += r.investment;
-    investmentGain += gain;
     cashSaving += netSaving - r.investment;
 
+    // 수익은 현금으로 들어오고, 투자 원금은 자산 내 이동이라 총액을 바꾸지 않는다
     assets += netSaving + gain;
     liabilities -= debtPaid;
 
@@ -286,7 +290,9 @@ export interface CumulativeTotals {
   cash: number;
   /** 그 시점 남은 부채 */
   liabilities: number;
-  /** 총 누적금액 = totalAssets - liabilities */
+  /** 소계 = cash − liabilities. 투자를 빼고 현금만 봤을 때의 순액 */
+  subtotal: number;
+  /** 총 누적금액 = totalAssets − liabilities = subtotal + investmentValue */
   netWorth: number;
   /** 누적 투자 원금 (내가 넣은 돈) */
   investedPrincipal: number;
@@ -337,13 +343,17 @@ export function cumulativeUpTo(
 
   // 투자자산 평가액 = 누적 원금 × (1 + 평균 수익률)
   //                = 누적 원금 + 누적 수익   ← 평균이 투자금액 가중평균이라 같은 식이다
+  // 투자금과 수익을 합친 금액. 수익은 이미 현금으로 빠져나왔지만,
+  // "투자로 만들어낸 몫"을 한 덩어리로 볼 때 쓴다.
   const investmentValue = investedPrincipal + investmentGain;
+  // 투자로 만든 몫을 뺀 나머지 = 저축으로 모은 현금. 초기자산도 여기 포함된다.
+  const cash = totalAssets - investmentValue;
 
   return {
     totalAssets,
-    // 누적금액에서 투자자산을 뺀 나머지가 현금. 초기자산도 여기 포함된다.
-    cash: totalAssets - investmentValue,
+    cash,
     liabilities,
+    subtotal: cash - liabilities,
     netWorth: totalAssets - liabilities,
     investedPrincipal,
     investmentGain,
