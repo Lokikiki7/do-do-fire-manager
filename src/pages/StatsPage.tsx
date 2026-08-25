@@ -23,6 +23,9 @@ export function StatsPage() {
       records.reduce((s, r) => s + (r.income ? (r.investment / r.income) * 100 : 0), 0) /
       records.length;
 
+    // 지출은 통합 기록(expense)과 고정/변동으로 나눠 저장하던 과거 기록이 섞여 있다.
+    // 과거 기록의 구분은 살려서 보여주고, 새 기록은 '지출' 한 조각으로 합친다.
+    const expense = records.reduce((s, r) => s + (r.expense ?? 0), 0);
     const fixed = records.reduce((s, r) => s + r.fixedExpense, 0);
     const variable = records.reduce((s, r) => s + r.variableExpense, 0);
     const invest = records.reduce((s, r) => s + r.investment, 0);
@@ -45,7 +48,7 @@ export function StatsPage() {
     // 투자 수익률 = 누적 수익 / 누적 원금
     const gainRate = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
 
-    return { avgSaving, avgInvest, fixed, variable, invest, save, growth, totalInvested, totalGain, gainRate };
+    return { avgSaving, avgInvest, expense, fixed, variable, invest, save, growth, totalInvested, totalGain, gainRate };
   }, [records, initialAsset, initialLiability]);
 
   if (!stats) {
@@ -61,6 +64,8 @@ export function StatsPage() {
   }
 
   const composition = [
+    { name: '지출', value: stats.expense },
+    // 고정/변동은 예전 방식으로 기록한 데이터가 있을 때만 조각으로 나타난다
     { name: '고정지출', value: stats.fixed },
     { name: '변동지출', value: stats.variable },
     { name: '투자', value: stats.invest },

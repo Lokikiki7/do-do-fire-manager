@@ -6,20 +6,24 @@
  *  - "오늘 기록하기" 원탭 버튼
  * 버그 수정: 복제 버튼이 값을 복사하지 않던 문제 → 원본 값을 프리필
  */
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Trash2, Wallet, Pencil, Copy, Plus, ChevronDown, Info } from 'lucide-react';
 import { useAppData } from '@/hooks/useAppData';
 import { useConfirm } from '@/components/ui/ConfirmDialog';
 import { Card, SectionTitle, Button, Field, Input, EmptyState, cn, Modal } from '@/components/ui';
 import { BudgetCalendar } from '@/components/budget/BudgetCalendar';
 import { BudgetBarChart } from '@/components/charts';
-import { savingRate, buildAssetSeries } from '@/utils/finance';
+import { savingRate, buildAssetSeries, cumulativeUpTo, totalExpenseOf } from '@/utils/finance';
 import { parseAmount } from '@/utils/validate';
 import { formatMoney, formatPercent, todayISO, uid } from '@/utils/format';
 import type { DailyRecord } from '@/types';
 
-const EMPTY = { income: '', fixedExpense: '', variableExpense: '', debt: '', investment: '', saving: '', investmentReturnRate: '' };
+// 저축은 폼에 두지 않는다 — 순저축 − 투자금으로 항상 파생되는 값이라
+// 입력값으로 들고 있으면 둘이 어긋날 여지가 생긴다.
+const EMPTY = { income: '', expense: '', debt: '', investment: '', investmentReturnRate: '' };
 type FormState = Record<keyof typeof EMPTY, string>;
+/** 순저축을 바꾸는 필드 — 이 값이 바뀌면 투자금이 비율을 유지한 채 따라 조정된다 */
+type CashFlowField = 'income' | 'expense' | 'debt';
 const PAGE_SIZE = 20;
 
 function formatDateKor(date: string): string {
@@ -30,13 +34,60 @@ function formatDateKor(date: string): string {
 function toForm(r: DailyRecord): FormState {
   return {
     income: String(r.income || ''),
-    fixedExpense: String(r.fixedExpense || ''),
-    variableExpense: String(r.variableExpense || ''),
+    // 고정/변동으로 나눠 저장된 과거 기록은 합쳐서 하나의 지출로 보여준다
+    expense: String(totalExpenseOf(r) || ''),
     debt: String(r.debt || ''),
     investment: String(r.investment || ''),
-    saving: String(r.saving || ''),
     investmentReturnRate: String(r.investmentReturnRate || ''),
   };
+}
+
+/** 폼 입력값 기준 순저축 (수입 − 지출 − 부채상환) */
+function formNetSaving(f: FormState): number {
+  return parseAmount(f.income) - parseAmount(f.expense) - parseAmount(f.debt);
+}
+
+type BoxTone = 'default' | 'negative' | 'positive' | 'accent';
+const BOX_TONE: Record<BoxTone, string> = {
+  default: 'text-ink',
+  negative: 'text-negative',
+  positive: 'text-positive',
+  accent: 'text-accent',
+};
+
+/** 누적 섹션의 지표 박스 — 라벨 + 금액 한 칸 */
+function StatBox({
+  label,
+  value,
+  tone = 'default',
+  surface = false,
+  highlight = false,
+}: {
+  label: ReactNode;
+  value: string;
+  tone?: BoxTone;
+  /** 색이 깔린 묶음 안에 놓일 때 (카드 배경을 surface로) */
+  surface?: boolean;
+  /** 그 묶음의 결론값 강조 */
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'p-2.5 rounded-lg border',
+        highlight
+          ? 'bg-accent/10 border-accent/20'
+          : surface
+            ? 'bg-surface border-line/[0.06]'
+            : 'bg-canvas dark:bg-elevated border-line/[0.06]',
+      )}
+    >
+      <div className="text-[10px] text-ink-faint mb-1 leading-tight">{label}</div>
+      <div className={cn('text-xs sm:text-sm font-semibold tabular break-all', BOX_TONE[tone])}>
+        {value}
+      </div>
+    </div>
+  );
 }
 
 export function BudgetPage() {
@@ -62,36 +113,74 @@ export function BudgetPage() {
   };
 
   const income = parseAmount(form.income);
-  const fixedExp = parseAmount(form.fixedExpense);
-  const varExp = parseAmount(form.variableExpense);
+  const expense = parseAmount(form.expense);
   const debtPayment = parseAmount(form.debt);
   const investment = parseAmount(form.investment);
-  const saving = parseAmount(form.saving);
 
-  const totalExpense = fixedExp + varExp + debtPayment;
-  const savableAmount = Math.max(0, income - totalExpense);
+  // 지출이 수입보다 크면 음수 그대로 둔다 (0으로 자르면 배분 합이 어긋난다)
+  const netSaving = formNetSaving(form);
+  // 저축은 순저축에서 투자금을 뺀 나머지. 입력값이 아니라 파생값이라 어긋날 수 없다.
+  const derivedSaving = netSaving - investment;
 
-  const autoSaving = investment > 0 ? Math.max(0, savableAmount - investment) : saving;
-  const autoInvestment = saving > 0 ? Math.max(0, savableAmount - saving) : investment;
+  /** 지금 모달에 입력된 값으로 만든, 아직 저장되지 않은 기록 (id는 저장 시점에 확정) */
+  const draftRecord: DailyRecord = {
+    id: existing?.id ?? '',
+    date: modalDate ?? todayISO(),
+    income,
+    expense,
+    // 통합 지출로 저장하므로 과거 방식 필드는 비운다 (총지출은 셋의 합)
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: debtPayment,
+    investment,
+    saving: derivedSaving,
+    investmentReturnRate: parseAmount(form.investmentReturnRate),
+  };
+
+  // 선택한 날짜까지의 누적 — 저장 전 입력값을 그 날짜 기록으로 갈아끼워 미리 반영한다.
+  // (투자금을 입력하는 순간 누적 카드가 즉시 반응하도록)
+  const previewRecords = modalDate
+    ? [...records.filter((r) => r.date !== modalDate), draftRecord]
+    : records;
+
+  const cumulative = cumulativeUpTo(
+    previewRecords,
+    draftRecord.date,
+    data.settings.initialAsset,
+    data.settings.initialLiability,
+  );
+
+  // 부채가 없으면 부채·소계 카드를, 투자 기록이 없으면 투자 카드 묶음을 숨긴다
+  const hasDebt = cumulative.totalDebtPayment > 0;
+  const hasInvestment = cumulative.investedPrincipal !== 0;
 
   const submit = () => {
     if (!modalDate) return;
-    upsertRecord({
-      id: existing?.id || uid(),
-      date: modalDate,
-      income,
-      fixedExpense: fixedExp,
-      variableExpense: varExp,
-      debt: debtPayment,
-      investment: autoInvestment,
-      saving: autoSaving,
-      investmentReturnRate: parseAmount(form.investmentReturnRate),
-    });
+    upsertRecord({ ...draftRecord, id: existing?.id || uid(), date: modalDate });
     closeModal();
   };
 
   const setField = (k: keyof typeof EMPTY) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  /**
+   * 수입·지출·부채상환이 바뀌면 순저축이 달라지므로,
+   * 투자금과 저축의 비율을 유지한 채 투자금을 다시 맞춘다.
+   * (지출을 늘렸는데 투자금만 그대로 남아 저축이 음수로 빠지는 걸 막는다)
+   * 순저축이 0 이하가 되면 나눌 몫이 없으므로 투자금은 0이 된다.
+   */
+  const setCashFlowField =
+    (k: CashFlowField) => (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm((f) => {
+        const next = { ...f, [k]: e.target.value };
+        const before = formNetSaving(f);
+        const after = formNetSaving(next);
+        if (before > 0 && after !== before) {
+          const scaled = Math.max(0, Math.round((parseAmount(f.investment) * after) / before));
+          next.investment = scaled === 0 ? '' : String(scaled);
+        }
+        return next;
+      });
 
   /** 다음 날짜로 복제 — 원본 기록의 값을 프리필해서 모달을 연다 */
   const duplicate = (r: DailyRecord) => {
@@ -124,7 +213,7 @@ export function BudgetPage() {
     .map((r) => ({
       x: r.date.slice(5),
       수입: r.income,
-      지출: r.fixedExpense + r.variableExpense,
+      지출: totalExpenseOf(r),
       투자: r.investment,
     }));
 
@@ -193,59 +282,174 @@ export function BudgetPage() {
           title={`${formatDateKor(modalDate)} 기록`}
         >
           <div className="space-y-4">
-            <div>
-              <div className="text-xs font-semibold text-ink-faint mb-3 uppercase tracking-wide">필수</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {/* ── 입력 섹션 ── 이 날짜에 실제로 일어난 거래만 적는다 */}
+            <section>
+              <div className="flex items-baseline justify-between mb-3">
+                <h4 className="text-sm font-semibold text-ink">{formatDateKor(modalDate)} 기록 입력</h4>
+                <span className="text-[10px] text-ink-faint">이 날짜의 거래만</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <Field label="수입">
-                  <Input type="number" inputMode="numeric" placeholder="0" value={form.income} onChange={setField('income')} autoFocus />
+                  <Input type="number" inputMode="numeric" placeholder="0" value={form.income} onChange={setCashFlowField('income')} autoFocus />
                 </Field>
-                <Field label="고정지출">
-                  <Input type="number" inputMode="numeric" placeholder="0" value={form.fixedExpense} onChange={setField('fixedExpense')} />
+                <Field label="지출">
+                  <Input type="number" inputMode="numeric" placeholder="0" value={form.expense} onChange={setCashFlowField('expense')} />
                 </Field>
-                <Field label="변동지출">
-                  <Input type="number" inputMode="numeric" placeholder="0" value={form.variableExpense} onChange={setField('variableExpense')} />
-                </Field>
-                <Field label="부채 상환" hint="선택">
-                  <Input type="number" inputMode="numeric" placeholder="0" value={form.debt} onChange={setField('debt')} />
+                <Field label="부채상환" hint="선택">
+                  <Input type="number" inputMode="numeric" placeholder="0" value={form.debt} onChange={setCashFlowField('debt')} />
                 </Field>
                 <Field label="순저축" hint="자동">
-                  <div className="flex items-center justify-center h-11 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.08] text-xs font-semibold text-accent tabular">
-                    {formatMoney(savableAmount, currency)}
+                  <div
+                    className={cn(
+                      'flex items-center justify-center h-11 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.08] text-xs font-semibold tabular',
+                      netSaving >= 0 ? 'text-accent' : 'text-negative',
+                    )}
+                  >
+                    {formatMoney(netSaving, currency)}
                   </div>
                 </Field>
               </div>
-            </div>
 
-            <div className="p-3 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.06]">
-              <div className="text-xs font-semibold text-ink-faint mb-3 uppercase tracking-wide">투자 배분</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Field label="투자금">
-                  <Input type="number" inputMode="numeric" placeholder="0" value={form.investment} onChange={setField('investment')} />
-                </Field>
-                <Field label="수익률 (%)">
-                  <Input type="number" inputMode="decimal" placeholder="0" value={form.investmentReturnRate} onChange={setField('investmentReturnRate')} step="0.1" min="0" max="100" />
-                </Field>
-                <Field label="저축">
-                  <Input type="number" inputMode="numeric" placeholder={autoSaving > 0 ? String(autoSaving) : '0'} value={form.saving} onChange={setField('saving')} />
-                </Field>
+              <div className="mt-3 p-3 rounded-xl bg-canvas dark:bg-elevated border border-line/[0.06]">
+                <div className="text-xs font-semibold text-ink-faint mb-3 uppercase tracking-wide">투자 배분</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  <Field label="투자금">
+                    <Input type="number" inputMode="numeric" placeholder="0" value={form.investment} onChange={setField('investment')} />
+                  </Field>
+                  <Field label="수익률 (%)">
+                    <Input type="number" inputMode="decimal" placeholder="0" value={form.investmentReturnRate} onChange={setField('investmentReturnRate')} step="0.1" min="0" max="100" />
+                  </Field>
+                  <Field label="저축" hint="자동">
+                    <div
+                      className={cn(
+                        'flex items-center justify-center h-11 rounded-xl bg-surface border border-line/[0.08] text-xs font-semibold tabular',
+                        derivedSaving >= 0 ? 'text-ink' : 'text-negative',
+                      )}
+                    >
+                      {formatMoney(derivedSaving, currency)}
+                    </div>
+                  </Field>
+                </div>
+                <div className="mt-2 text-[10px] text-ink-faint leading-relaxed">
+                  저축 = 순저축 − 투자금. 지출을 고치면 투자금과 저축이 비율을 유지한 채 함께 조정됩니다.
+                  {derivedSaving < 0 && ' 저축이 음수면 기존 현금을 헐어 투자한 것으로 봅니다.'}
+                </div>
               </div>
-            </div>
 
-            {existing && (
-              <div className="flex items-start gap-2 p-2.5 rounded-lg bg-gold/10 text-gold text-xs leading-relaxed">
-                <Info size={14} className="shrink-0 mt-0.5" />
-                <span>
-                  이 날짜에 이미 기록이 있어요. 저장하면 <b>기존 값을 덮어씁니다</b>. 더하려면 아래
-                  금액을 직접 합산해 입력하세요.
+              {existing && (
+                <div className="mt-3 flex items-start gap-2 p-2.5 rounded-lg bg-gold/10 text-gold text-xs leading-relaxed">
+                  <Info size={14} className="shrink-0 mt-0.5" />
+                  <span>
+                    이 날짜에 이미 기록이 있어요. 저장하면 <b>기존 값을 덮어씁니다</b>. 더하려면 위
+                    금액을 직접 합산해 입력하세요.
+                  </span>
+                </div>
+              )}
+            </section>
+
+            {/* ── 누적 섹션 ── 과거 기록을 전부 합친 결과. 입력값이 즉시 반영된다.
+                현금 기준(상단)과 투자(하단)를 분리해 보여준다 */}
+            <section className="pt-4 border-t border-line/10">
+              <div className="flex items-baseline justify-between mb-3">
+                <h4 className="text-sm font-semibold text-ink">{formatDateKor(modalDate)} 기준 누적</h4>
+                <span className="text-[10px] text-ink-faint">
+                  {cumulative.recordCount > 0 ? `과거 기록 ${cumulative.recordCount}건 포함` : '기록 없음'}
                 </span>
               </div>
-            )}
 
-            <div className="text-xs text-ink-faint">
-              총지출 <span className="font-semibold text-ink">{formatMoney(totalExpense, currency)}</span>
-              <span className="mx-2 text-line/40">|</span>
-              순저축 <span className="font-semibold text-ink">{formatMoney(savableAmount, currency)}</span>
-            </div>
+              {/* 현금 기준 */}
+              <div className="rounded-xl border border-line/[0.08] p-2.5">
+                <div className="text-[10px] font-semibold text-ink-faint mb-2 uppercase tracking-wide">현금 기준</div>
+                <div className={cn('grid gap-2', hasDebt ? 'grid-cols-3' : 'grid-cols-1')}>
+                  <StatBox
+                    label={<>누적금액 <span className="opacity-70">(투자금·부채 제외)</span></>}
+                    value={formatMoney(cumulative.cash, currency)}
+                  />
+                  {hasDebt && (
+                    <>
+                      <StatBox label="부채" value={formatMoney(cumulative.totalDebtPayment, currency)} tone="negative" />
+                      <StatBox
+                        label="소계"
+                        value={formatMoney(cumulative.subtotal, currency)}
+                        tone={cumulative.subtotal >= 0 ? 'default' : 'negative'}
+                      />
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* 투자 — 두 줄로 나눠 표시 */}
+              {hasInvestment && (
+                <div className="mt-2 rounded-xl border border-positive/20 bg-positive/[0.04] p-2.5 space-y-2">
+                  <div className="text-[10px] font-semibold text-positive/80 uppercase tracking-wide">투자</div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <StatBox label="누적투자금" value={formatMoney(cumulative.investedPrincipal, currency)} surface />
+                    <StatBox
+                      label="누적투자수익"
+                      value={`${cumulative.investmentGain > 0 ? '+' : ''}${formatMoney(cumulative.investmentGain, currency)}`}
+                      tone={cumulative.investmentGain >= 0 ? 'positive' : 'negative'}
+                      surface
+                    />
+                    <StatBox
+                      label="투자자산 총평가액"
+                      value={formatMoney(cumulative.investmentValue, currency)}
+                      tone="accent"
+                      surface
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <StatBox
+                      label="실제 통장잔액"
+                      value={formatMoney(cumulative.bankBalance, currency)}
+                      tone={cumulative.bankBalance >= 0 ? 'default' : 'negative'}
+                      surface
+                    />
+                    <StatBox
+                      label="이달투자수익"
+                      value={`${cumulative.monthlyGain > 0 ? '+' : ''}${formatMoney(cumulative.monthlyGain, currency)}`}
+                      tone={cumulative.monthlyGain >= 0 ? 'positive' : 'negative'}
+                      surface
+                    />
+                    <StatBox
+                      label="총순자산"
+                      value={formatMoney(cumulative.totalAssets, currency)}
+                      tone={cumulative.totalAssets >= 0 ? 'accent' : 'negative'}
+                      highlight
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 숫자가 어디서 나왔는지 항목별로 그대로 적어둔다 (검산 가능하도록) */}
+              <div className="mt-2 space-y-1 text-[10px] text-ink-faint tabular leading-relaxed">
+                <div>
+                  누적금액 = 초기자산{' '}
+                  <span className="font-semibold text-ink-soft">{formatMoney(data.settings.initialAsset, currency)}</span>
+                  {' + 수입 '}
+                  <span className="font-semibold text-positive">{formatMoney(cumulative.totalIncome, currency)}</span>
+                  {' − 지출 '}
+                  <span className="font-semibold text-negative">{formatMoney(cumulative.totalExpense, currency)}</span>
+                  {' − 부채상환 '}
+                  <span className="font-semibold text-negative">{formatMoney(cumulative.totalDebtPayment, currency)}</span>
+                </div>
+                {hasInvestment && (
+                  <>
+                    <div>
+                      실제 통장잔액 = 누적금액 − 누적투자금{' '}
+                      <span className="font-semibold text-ink-soft">{formatMoney(cumulative.investedPrincipal, currency)}</span>
+                      {' · 총순자산 = 통장잔액 + 투자자산 총평가액'}
+                    </div>
+                    <div>
+                      수익률은 누적투자금 전체에 붙습니다 · 원금 대비 수익률{' '}
+                      <span className="font-semibold text-ink-soft">{formatPercent(cumulative.averageReturnRate)}</span>
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
 
             <div className="flex gap-2 justify-end pt-1">
               <Button variant="ghost" onClick={closeModal} className="min-h-[44px] flex-1 sm:flex-none">취소</Button>
@@ -275,7 +479,7 @@ export function BudgetPage() {
             {/* 모바일: 세로 카드 리스트 (가로 스크롤 없음) */}
             <div className="sm:hidden space-y-2">
               {visibleRecords.map((r) => {
-                const expense = r.fixedExpense + r.variableExpense;
+                const expense = totalExpenseOf(r);
                 const invSave = r.investment + r.saving;
                 const rate = savingRate(r.income, r.investment, r.saving);
                 return (
@@ -332,7 +536,7 @@ export function BudgetPage() {
                 </thead>
                 <tbody>
                   {visibleRecords.map((r) => {
-                    const expense = r.fixedExpense + r.variableExpense;
+                    const expense = totalExpenseOf(r);
                     const invSave = r.investment + r.saving;
                     const rate = savingRate(r.income, r.investment, r.saving);
                     return (

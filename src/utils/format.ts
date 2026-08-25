@@ -51,6 +51,24 @@ export function todayISO(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+/**
+ * 날짜 문자열을 YYYY-MM-DD로 정규화.
+ *
+ * 앱 안에서 만드는 날짜는 항상 zero-pad 되지만(todayISO / 달력 셀 / 복제),
+ * JSON 임포트나 클라우드 동기화로 '2026-8-5' 같은 값이 들어올 수 있다.
+ * 코드 전반이 문자열 비교에 의존하므로(localeCompare 정렬, r.date >= cutoff)
+ * 정규화하지 않으면 '2026-8-5' > '2026-12-01' 이 참이 되어
+ * 정렬과 누적 합계가 동시에 깨진다.
+ *
+ * ISO 타임스탬프('2026-08-05T00:00:00Z')는 날짜 부분만 남긴다.
+ * 형식을 알 수 없는 값은 그대로 돌려준다 (임의로 버리지 않음).
+ */
+export function normalizeDate(date: string): string {
+  const m = /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/.exec(date.trim());
+  if (!m) return date;
+  return `${m[1]}-${m[2].padStart(2, '0')}-${m[3].padStart(2, '0')}`;
+}
+
 /** 이번 달 YYYY-MM (로컬 시간대 기준) */
 export function currentMonth(): string {
   return todayISO().slice(0, 7);

@@ -9,6 +9,7 @@ import {
   formatShort,
   formatPercent,
   formatMonth,
+  normalizeDate,
 } from '@/utils/format';
 
 describe('formatMoney', () => {
@@ -66,5 +67,38 @@ describe('formatMonth', () => {
   });
   it('앞자리 0 제거', () => {
     expect(formatMonth('2026-01')).toBe('2026년 1월');
+  });
+});
+
+describe('normalizeDate (날짜 정규화)', () => {
+  it('이미 정규화된 날짜는 그대로', () => {
+    expect(normalizeDate('2026-08-05')).toBe('2026-08-05');
+  });
+
+  it('zero-pad 되지 않은 월/일을 채운다', () => {
+    expect(normalizeDate('2026-8-5')).toBe('2026-08-05');
+    expect(normalizeDate('2026-8-15')).toBe('2026-08-15');
+    expect(normalizeDate('2026-12-1')).toBe('2026-12-01');
+  });
+
+  it('정규화하면 문자열 비교 순서가 바로잡힌다', () => {
+    // 정규화 전에는 '2026-8-5' > '2026-12-01' 이라 정렬이 깨진다
+    expect('2026-8-5' > '2026-12-01').toBe(true);
+    expect(normalizeDate('2026-8-5') > normalizeDate('2026-12-01')).toBe(false);
+  });
+
+  it('ISO 타임스탬프는 날짜 부분만 남긴다', () => {
+    expect(normalizeDate('2026-08-05T00:00:00Z')).toBe('2026-08-05');
+    expect(normalizeDate('2026-8-5T09:30:00+09:00')).toBe('2026-08-05');
+  });
+
+  it('앞뒤 공백을 제거한다', () => {
+    expect(normalizeDate('  2026-8-5  ')).toBe('2026-08-05');
+  });
+
+  it('형식을 알 수 없는 값은 그대로 돌려준다 (데이터를 버리지 않음)', () => {
+    expect(normalizeDate('')).toBe('');
+    expect(normalizeDate('그날')).toBe('그날');
+    expect(normalizeDate('2026/08/05')).toBe('2026/08/05');
   });
 });

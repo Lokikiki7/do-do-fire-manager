@@ -39,6 +39,9 @@ export function useMetrics() {
     // 누적 투자 원금 / 누적 투자 수익
     const totalInvested = latest?.investedPrincipal ?? 0;
     const totalGain = latest?.investmentGain ?? 0;
+    // 투자자산 평가액 = 원금 + 수익. 투자수익금은 평가액 - 원금이므로 곧 totalGain이다.
+    const investmentValue = totalInvested + totalGain;
+    const gainRate = totalInvested > 0 ? (totalGain / totalInvested) * 100 : 0;
 
     // 이번 달에 투자한 금액 (월별 진행 상황 확인용)
     const thisMonth = new Date().toISOString().slice(0, 7);
@@ -69,6 +72,8 @@ export function useMetrics() {
       netWorth,
       totalInvested,
       totalGain,
+      investmentValue,
+      gainRate,
       investedThisMonth,
       dayChange,
       dayChangePct,
