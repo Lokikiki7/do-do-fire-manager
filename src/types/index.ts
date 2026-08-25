@@ -99,10 +99,12 @@ export interface AppData {
   simulator: SimulatorInput;
 }
 
+// 시뮬레이터는 계산기로 통합되어 페이지가 없어졌다.
+// AppData.simulator(설정값)는 남겨둔다 — 계산기 그래프가 simulate()를 그대로 쓰고,
+// 예전 저장 데이터·클라우드 동기화 왕복에서 값이 유실되지 않아야 한다.
 export type PageKey =
   | 'dashboard'
   | 'calculator'
-  | 'simulator'
   | 'roadmap'
   | 'goals'
   | 'budget'

@@ -46,14 +46,17 @@ export const DEFAULT_DATA: AppData = {
   },
 };
 
-/** 사이드바 네비게이션 정의 (아이콘은 2단계에서 매핑) */
+/**
+ * 사이드바 네비게이션 정의 (아이콘은 Nav에서 매핑).
+ * 이 배열이 유효한 라우트 목록도 겸하므로(useHashRoute), 여기서 빠진 키의
+ * 해시(#/simulator 같은 옛 북마크)는 자동으로 대시보드로 넘어간다.
+ */
 export const NAV_ITEMS: { key: PageKey; label: string }[] = [
   { key: 'dashboard', label: '대시보드' },
-  { key: 'calculator', label: 'FIRE 계산기' },
-  { key: 'simulator', label: '투자 시뮬레이터' },
-  { key: 'roadmap', label: '인생 로드맵' },
-  { key: 'goals', label: '목표 관리' },
-  { key: 'budget', label: '수입 / 지출' },
   { key: 'stats', label: '통계' },
+  { key: 'goals', label: '목표 관리' },
+  { key: 'roadmap', label: '인생 로드맵' },
+  { key: 'budget', label: '수입 / 지출' },
+  { key: 'calculator', label: 'FIRE 계산기' },
   { key: 'settings', label: '설정' },
 ];

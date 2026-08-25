@@ -20,7 +20,6 @@ import type {
   DailyRecord,
   Milestone,
   Goal,
-  SimulatorInput,
 } from '@/types';
 import { loadData, saveData, autoBackup } from '@/utils/storage';
 
@@ -28,7 +27,6 @@ interface AppDataContextValue {
   data: AppData;
   replaceAll: (next: AppData) => void;
   updateSettings: (patch: Partial<Settings>) => void;
-  updateSimulator: (patch: Partial<SimulatorInput>) => void;
   addSnapshot: (s: AssetSnapshot) => void;
   removeSnapshot: (id: string) => void;
   upsertRecord: (r: DailyRecord) => void;
@@ -60,10 +58,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setData((d) => ({ ...d, settings: { ...d.settings, ...patch } }));
-  }, []);
-
-  const updateSimulator = useCallback((patch: Partial<SimulatorInput>) => {
-    setData((d) => ({ ...d, simulator: { ...d.simulator, ...patch } }));
   }, []);
 
   const addSnapshot = useCallback((s: AssetSnapshot) => {
@@ -118,7 +112,6 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     data,
     replaceAll,
     updateSettings,
-    updateSimulator,
     addSnapshot,
     removeSnapshot,
     upsertRecord,

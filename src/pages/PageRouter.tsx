@@ -13,9 +13,6 @@ import { DashboardPage } from '@/pages/DashboardPage';
 const CalculatorPage = lazy(() =>
   import('@/pages/CalculatorPage').then((m) => ({ default: m.CalculatorPage })),
 );
-const SimulatorPage = lazy(() =>
-  import('@/pages/SimulatorPage').then((m) => ({ default: m.SimulatorPage })),
-);
 const RoadmapPage = lazy(() =>
   import('@/pages/RoadmapPage').then((m) => ({ default: m.RoadmapPage })),
 );
@@ -32,8 +29,7 @@ const SettingsPage = lazy(() =>
 // eslint-disable-next-line react-refresh/only-export-components
 export const PAGE_META: Record<PageKey, { title: string; subtitle: string }> = {
   dashboard: { title: '대시보드', subtitle: '한눈에 보는 나의 경제적 자유 현황' },
-  calculator: { title: 'FIRE 계산기', subtitle: '4% 룰로 필요한 자금과 달성 시점을 계산해요' },
-  simulator: { title: '투자 시뮬레이터', subtitle: '복리의 힘으로 미래 자산을 예측해요' },
+  calculator: { title: 'FIRE 계산기', subtitle: '목표와 저축액을 넣고 달성 시점을 시뮬레이션해요' },
   roadmap: { title: '인생 로드맵', subtitle: '연도별 목표를 세우고 하나씩 달성해요' },
   goals: { title: '목표 관리', subtitle: '단기·중기·장기 목표를 나눠 관리해요' },
   budget: { title: '수입 / 지출', subtitle: '매달 현금 흐름을 기록하고 저축률을 확인해요' },
@@ -56,8 +52,6 @@ export function PageRouter({ page, user }: { page: PageKey; user: User | null })
         return <DashboardPage />;
       case 'calculator':
         return <CalculatorPage />;
-      case 'simulator':
-        return <SimulatorPage />;
       case 'roadmap':
         return <RoadmapPage />;
       case 'goals':

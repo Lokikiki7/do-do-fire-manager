@@ -7,7 +7,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
   Calculator,
-  TrendingUp,
   Map,
   Target,
   Wallet,
@@ -23,7 +22,6 @@ import { cn } from '@/components/ui';
 const ICONS: Record<PageKey, typeof LayoutDashboard> = {
   dashboard: LayoutDashboard,
   calculator: Calculator,
-  simulator: TrendingUp,
   roadmap: Map,
   goals: Target,
   budget: Wallet,
@@ -34,7 +32,6 @@ const ICONS: Record<PageKey, typeof LayoutDashboard> = {
 const LABELS: Record<PageKey, string> = {
   dashboard: '대시보드',
   calculator: '계산기',
-  simulator: '시뮬레이터',
   roadmap: '로드맵',
   goals: '목표',
   budget: '수입/지출',
@@ -42,21 +39,22 @@ const LABELS: Record<PageKey, string> = {
   settings: '설정',
 };
 
-// 데스크톱 사이드바에 노출할 전체 항목
+// 데스크톱 사이드바 순서 — 보는 화면(대시보드·통계)을 위로,
+// 적는 화면(수입/지출)과 도구(계산기)를 아래로 둔다
 const FULL_ORDER: PageKey[] = [
   'dashboard',
-  'calculator',
-  'simulator',
-  'roadmap',
-  'goals',
-  'budget',
   'stats',
+  'goals',
+  'roadmap',
+  'budget',
+  'calculator',
   'settings',
 ];
-// 모바일 하단 탭: 자주 쓰는 4개만 노출 (탭이 8개면 터치 타깃이 44px 미만으로 줄어듦)
-const MOBILE_PRIMARY: PageKey[] = ['dashboard', 'budget', 'simulator', 'roadmap'];
+// 모바일 하단 탭: 자주 쓰는 4개만 노출 (탭이 7개면 터치 타깃이 44px 미만으로 줄어듦).
+// 수입/지출은 매일 입력하는 화면이라 사이드바에서 내려가도 여기엔 남긴다.
+const MOBILE_PRIMARY: PageKey[] = ['dashboard', 'stats', 'budget', 'roadmap'];
 // 나머지는 "더보기" 시트에서 접근 — 이전에는 링크가 없어 모바일에서 진입 자체가 불가능했다
-const MOBILE_MORE: PageKey[] = ['calculator', 'goals', 'stats', 'settings'];
+const MOBILE_MORE: PageKey[] = ['goals', 'calculator', 'settings'];
 
 interface NavProps {
   current: PageKey;
