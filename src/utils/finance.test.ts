@@ -16,6 +16,7 @@ import {
   cumulativeUpTo,
   netSavingOf,
   totalExpenseOf,
+  expenseRatio,
 } from '@/utils/finance';
 import type { SimulatorInput, DailyRecord } from '@/types';
 
@@ -866,5 +867,56 @@ describe('cumulativeUpTo — 투자 섹션 (통장잔액 / 총평가액 / 이달
     );
     expect(c.cash).toBe(500);
     expect(c.bankBalance).toBe(-300);
+  });
+});
+
+describe('expenseRatio — 누적 지출율', () => {
+  const rec = (date: string, p: Partial<DailyRecord> = {}): DailyRecord => ({
+    id: date,
+    date,
+    income: 0,
+    expense: 0,
+    fixedExpense: 0,
+    variableExpense: 0,
+    debt: 0,
+    investment: 0,
+    saving: 0,
+    ...p,
+  });
+
+  it('신고된 버그: 수입과 지출이 다른 날짜에 있어도 0%가 되지 않는다', () => {
+    // 예전 로직은 기록별 비율을 평균 내서, 수입날 지출 0 → 0%,
+    // 지출날은 income=0이라 제외 → 항상 0%였다
+    const c = expenseRatio([
+      rec('2026-08-01', { income: 10_289_070 }),
+      rec('2026-08-05', { expense: 3_000_000 }),
+    ]);
+    expect(c).toBeCloseTo(29.2, 1); // 3,000,000 / 10,289,070
+    expect(c).not.toBe(0);
+  });
+
+  it('같은 날에 있든 다른 날에 나뉘든 결과가 같다', () => {
+    const split = expenseRatio([
+      rec('2026-08-01', { income: 1000 }),
+      rec('2026-08-05', { expense: 300 }),
+    ]);
+    const together = expenseRatio([rec('2026-08-01', { income: 1000, expense: 300 })]);
+    expect(split).toBe(together);
+    expect(split).toBe(30);
+  });
+
+  it('과거 방식 고정/변동 지출도 합산한다', () => {
+    expect(
+      expenseRatio([rec('2026-08-01', { income: 1000, fixedExpense: 200, variableExpense: 100 })]),
+    ).toBe(30);
+  });
+
+  it('수입이 없으면 0 (0으로 나눔 방어)', () => {
+    expect(expenseRatio([rec('2026-08-01', { expense: 500 })])).toBe(0);
+    expect(expenseRatio([])).toBe(0);
+  });
+
+  it('지출이 수입을 넘으면 100%를 넘는다', () => {
+    expect(expenseRatio([rec('2026-08-01', { income: 1000, expense: 1500 })])).toBe(150);
   });
 });
